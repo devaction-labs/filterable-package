@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Request;
 use Mockery;
 
 // Classe de modelo fictícia que usa o trait Filterable
-class FilterableTestModel extends Model
+class FilterableTest extends Model
 {
     use Filterable;
 }
@@ -27,7 +27,7 @@ beforeEach(function () {
         ->andReturn(['name' => 'John']);  // Mockando o valor esperado
 
     // Instância do modelo
-    $model = new FilterableTestModel();
+    $model = new FilterableTest();
 });
 
 it('applies exact filter using scopeFilterable', function () {
@@ -38,9 +38,10 @@ it('applies exact filter using scopeFilterable', function () {
         ->with('name', '=', 'John')
         ->andReturnSelf();
 
-    $filters = [Filter::exact('name')];
+    $filters = [Filter::exact('name')->setValue('John')]; // Setando explicitamente o valor
     $model->scopeFilterable($builder, $filters);
 });
+
 
 it('applies pagination using scopeCustomPaginate', function () {
     global $builder, $model;
