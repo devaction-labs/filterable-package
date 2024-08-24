@@ -3,6 +3,7 @@
 namespace DevactionLabs\FilterablePackage;
 
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Request;
 use InvalidArgumentException;
 
 class Filter
@@ -28,19 +29,19 @@ class Filter
 
     protected string|int|null $default = null;
 
-    public function __construct(string $attribute, string $operator, ?array $filters = null, ?string $filterBy = null)
+    public function __construct(string $attribute, string $operator, ?string $filterBy = null)
     {
-        $this->filterBy  = $filterBy ?? $attribute;
+        $this->filterBy = $filterBy ?? $attribute;
         $this->attribute = $attribute;
-        $this->operator  = $operator;
+        $this->operator = $operator;
 
-        if ($filters !== null) {
-            $this->setValueFromFilters($filters);
-        }
+        $this->setValueFromRequest();
     }
 
-    public function setValueFromFilters(array $filters): void
+    public function setValueFromRequest(): void
     {
+        $filters = Request::query('filter', []);
+
         if (isset($filters[$this->filterBy]) && $this->isValid($filters[$this->filterBy])) {
             $value = $filters[$this->filterBy];
 
