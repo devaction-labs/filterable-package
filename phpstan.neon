@@ -1,0 +1,8 @@
+parameters:
+    paths:
+        - src
+
+    # O nível 9 é o mais alto
+    level: 9
+
+    treatPhpDocTypesAsCertain: false
