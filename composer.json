@@ -9,9 +9,9 @@
             "email": "alex@devaction.com.br"
         }
     ],
-    "version": "v1.0.1",
+    "version": "v1.0.2",
     "require": {
-        "php": "^8.2.0",
+        "php": "^8.2.0|^8.3.0",
         "illuminate/database": "^11.21",
         "illuminate/support": "^11.21"
     },
