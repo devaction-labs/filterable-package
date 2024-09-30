@@ -7,6 +7,7 @@ use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Contracts\Pagination\Paginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\Request;
 use InvalidArgumentException;
 
 trait Filterable
@@ -25,7 +26,7 @@ trait Filterable
      */
     public function scopeCustomPaginate(Builder $builder, bool $useSimplePaginate = false, ?array $data = null): Paginator|LengthAwarePaginator
     {
-        $data = $data ?? [];
+        $data = $data ?? Request::capture()->only('per_page', 'sort');
 
         $order   = 'ASC';
         $perPage = $data['per_page'] ?? 15;
