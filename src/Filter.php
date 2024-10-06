@@ -5,6 +5,7 @@ namespace DevactionLabs\FilterablePackage;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Request;
 use InvalidArgumentException;
+use JsonException;
 
 class Filter
 {
@@ -27,7 +28,12 @@ class Filter
 
     protected bool $isDate = false;
 
+    protected ?string $jsonPath = null;
+
     protected string|int|null $default = null;
+
+    protected ?string $databaseDriver = null;
+
 
     public function __construct(string $attribute, string $operator, ?string $filterBy = null)
     {
@@ -38,6 +44,9 @@ class Filter
         $this->setValueFromRequest();
     }
 
+    /**
+     * @throws JsonException
+     */
     public function setValueFromRequest(): void
     {
         $filters = Request::query('filter', []);
@@ -45,17 +54,34 @@ class Filter
         if (isset($filters[$this->filterBy]) && $this->isValid($filters[$this->filterBy])) {
             $value = $filters[$this->filterBy];
 
+            if ($this->jsonPath) {
+                $decoded = json_decode($value, true, 512, JSON_THROW_ON_ERROR);
+                if ($decoded !== null) {
+                    $keys = explode('.', $this->jsonPath);
+                    foreach ($keys as $key) {
+                        if (isset($decoded[$key])) {
+                            $decoded = $decoded[$key];
+                        } else {
+                            $decoded = null;
+                            break;
+                        }
+                    }
+                    $value = $decoded;
+                }
+            }
+
             if ($this->operator === 'LIKE') {
                 $value = str_replace('{{value}}', $value, $this->likePattern);
             }
 
-            if ($this->operator === 'IN') {
+            if ($this->operator === 'IN' && is_string($value)) {
                 $value = explode(',', $value);
             }
 
             $this->value = $value;
         }
     }
+
 
 
     public function isValid(mixed $value): bool
@@ -106,6 +132,23 @@ class Filter
     {
         return new self($attribute, '<', $filterBy);
     }
+
+    public static function json(string $attribute, string $path, string $operator = '=', ?string $filterBy = null): self
+    {
+        $filter = new self($attribute, $operator, $filterBy);
+        $filter->setJsonPath($path);
+        $filter->setValueFromRequest();
+        return $filter;
+    }
+
+
+    public function setJsonPath(string $path): self
+    {
+        $this->jsonPath = $path;
+
+        return $this;
+    }
+
 
     public function castDate(): self
     {
@@ -213,6 +256,16 @@ class Filter
 
     public function getAttribute(): string
     {
+        if ($this->jsonPath) {
+            if ($this->isUsingMySQL()) {
+                return "{$this->attribute}->'$.{$this->jsonPath}'";
+            }
+
+            if ($this->isUsingSQLite()) {
+                return "json_extract({$this->attribute}, '$.{$this->jsonPath}')";
+            }
+        }
+
         return $this->attribute;
     }
 
@@ -230,4 +283,41 @@ class Filter
     {
         return $this->isDate;
     }
+
+    protected function isUsingMySQL(): bool
+    {
+        return $this->getDatabaseDriver() === 'mysql';
+    }
+
+    protected function isUsingSQLite(): bool
+    {
+        return $this->getDatabaseDriver() === 'sqlite';
+    }
+
+    /**
+     * Define o driver do banco de dados a ser utilizado.
+     *
+     * @param string $driver
+     * @return self
+     */
+    public function setDatabaseDriver(string $driver): self
+    {
+        $this->databaseDriver = $driver;
+        return $this;
+    }
+
+
+    protected function getDatabaseDriver(): string|bool
+    {
+        if ($this->databaseDriver !== null) {
+            return $this->databaseDriver;
+        }
+
+        if (function_exists('config')) {
+            return config('database.default');
+        }
+
+        return getenv('DATABASE_DRIVER');
+    }
+
 }
