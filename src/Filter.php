@@ -35,6 +35,9 @@ class Filter
     protected ?string $databaseDriver = null;
 
 
+    /**
+     * @throws JsonException
+     */
     public function __construct(string $attribute, string $operator, ?string $filterBy = null)
     {
         $this->filterBy = $filterBy ?? $attribute;
@@ -55,8 +58,15 @@ class Filter
             $value = $filters[$this->filterBy];
 
             if ($this->jsonPath) {
-                $decoded = json_decode($value, true, 512, JSON_THROW_ON_ERROR);
-                if ($decoded !== null) {
+                $decoded = null;
+                if (is_string($value)) {
+                    try {
+                        $decoded = json_decode($value, true, 512, JSON_THROW_ON_ERROR);
+                    } catch (JsonException $e) {
+                    }
+                }
+
+                if (is_array($decoded)) {
                     $keys = explode('.', $this->jsonPath);
                     foreach ($keys as $key) {
                         if (isset($decoded[$key])) {
@@ -81,8 +91,6 @@ class Filter
             $this->value = $value;
         }
     }
-
-
 
     public function isValid(mixed $value): bool
     {
@@ -133,6 +141,9 @@ class Filter
         return new self($attribute, '<', $filterBy);
     }
 
+    /**
+     * @throws JsonException
+     */
     public static function json(string $attribute, string $path, string $operator = '=', ?string $filterBy = null): self
     {
         $filter = new self($attribute, $operator, $filterBy);
