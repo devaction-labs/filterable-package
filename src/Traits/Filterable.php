@@ -9,13 +9,12 @@ use Illuminate\Contracts\Pagination\Paginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use InvalidArgumentException;
+use Illuminate\Support\Facades\DB;
 
 trait Filterable
 {
     protected string $defaultSort = '';
-
     protected array $allowedSorts = [];
-
     protected array $filterMap = [];
 
     /**
@@ -63,7 +62,6 @@ trait Filterable
     {
         return $this->scopeFilterable($builder, $filters);
     }
-
     public function scopeFilterable(Builder $builder, array $filters): Builder
     {
         foreach ($filters as $filter) {
@@ -81,6 +79,11 @@ trait Filterable
 
             if (!empty($this->filterMap[$attribute])) {
                 $attribute = $this->filterMap[$attribute];
+            }
+
+            // Uso do método getter para acessar jsonPath
+            if ($filter->getJsonPath()) {
+                $attribute = DB::raw($attribute);
             }
 
             if ($filter->getOperator() === 'IN') {

@@ -10,7 +10,6 @@ use JsonException;
 class Filter
 {
     protected string $attribute;
-
     protected string $filterBy;
 
     /**
@@ -19,21 +18,13 @@ class Filter
     protected string|array|Carbon|int|null $value = null;
 
     protected string $operator;
-
     protected string $likePattern = '%{{value}}%';
-
     protected bool $endOfDay = false;
-
     protected bool $startOfDay = false;
-
     protected bool $isDate = false;
-
     protected ?string $jsonPath = null;
-
     protected string|int|null $default = null;
-
     protected ?string $databaseDriver = null;
-
 
     /**
      * @throws JsonException
@@ -63,6 +54,8 @@ class Filter
                     try {
                         $decoded = json_decode($value, true, 512, JSON_THROW_ON_ERROR);
                     } catch (JsonException $e) {
+                        // Opcional: Logar o erro ou lidar com ele conforme necessário
+                        $decoded = null;
                     }
                 }
 
@@ -152,40 +145,33 @@ class Filter
         return $filter;
     }
 
-
     public function setJsonPath(string $path): self
     {
         $this->jsonPath = $path;
-
         return $this;
     }
-
 
     public function castDate(): self
     {
         $this->isDate = true;
-
         return $this;
     }
 
     public function setLikePattern(string $pattern): self
     {
         $this->likePattern = $pattern;
-
         return $this;
     }
 
     public function setDefault(string|int|null $default): self
     {
         $this->default = $default;
-
         return $this;
     }
 
     public function setFilterBy(string $filterBy): self
     {
         $this->filterBy = $filterBy;
-
         return $this;
     }
 
@@ -230,7 +216,6 @@ class Filter
         }
 
         $this->value = $value;
-
         return $this;
     }
 
@@ -254,14 +239,12 @@ class Filter
     public function endOfDay(): self
     {
         $this->endOfDay = true;
-
         return $this;
     }
 
     public function startOfDay(): self
     {
         $this->startOfDay = true;
-
         return $this;
     }
 
@@ -269,11 +252,18 @@ class Filter
     {
         if ($this->jsonPath) {
             if ($this->isUsingMySQL()) {
-                return "{$this->attribute}->'$.{$this->jsonPath}'";
+                // Usar operador ->> para extrair o valor como string no MySQL
+                return "{$this->attribute}->>'$.{$this->jsonPath}'";
             }
 
             if ($this->isUsingSQLite()) {
+                // Usar json_extract com caminho JSON correto no SQLite
                 return "json_extract({$this->attribute}, '$.{$this->jsonPath}')";
+            }
+
+            if ($this->isUsingPostgreSQL()) {
+                // Usar operador ->> para extrair o valor como string no PostgreSQL
+                return "{$this->attribute}->>'{$this->jsonPath}'";
             }
         }
 
@@ -300,6 +290,11 @@ class Filter
         return $this->getDatabaseDriver() === 'mysql';
     }
 
+    protected function isUsingPostgreSQL(): bool
+    {
+        return $this->getDatabaseDriver() === 'pgsql';
+    }
+
     protected function isUsingSQLite(): bool
     {
         return $this->getDatabaseDriver() === 'sqlite';
@@ -317,7 +312,6 @@ class Filter
         return $this;
     }
 
-
     protected function getDatabaseDriver(): string|bool
     {
         if ($this->databaseDriver !== null) {
@@ -331,4 +325,8 @@ class Filter
         return getenv('DATABASE_DRIVER');
     }
 
+    public function getJsonPath(): ?string
+    {
+        return $this->jsonPath;
+    }
 }
