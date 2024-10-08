@@ -26,9 +26,7 @@ class Filter
     protected string|int|null $default = null;
     protected ?string $databaseDriver = null;
 
-    /**
-     * @throws JsonException
-     */
+
     public function __construct(string $attribute, string $operator, ?string $filterBy = null)
     {
         $this->filterBy = $filterBy ?? $attribute;
@@ -38,9 +36,6 @@ class Filter
         $this->setValueFromRequest();
     }
 
-    /**
-     * @throws JsonException
-     */
     public function setValueFromRequest(): void
     {
         $filters = Request::query('filter', []);
@@ -54,7 +49,6 @@ class Filter
                     try {
                         $decoded = json_decode($value, true, 512, JSON_THROW_ON_ERROR);
                     } catch (JsonException $e) {
-                        // Opcional: Logar o erro ou lidar com ele conforme necessário
                         $decoded = null;
                     }
                 }
@@ -134,9 +128,12 @@ class Filter
         return new self($attribute, '<', $filterBy);
     }
 
-    /**
-     * @throws JsonException
-     */
+    public static function relationship(string $relationship, string $attribute, string $operator = '=', ?string $filterBy = null): self
+    {
+        return new self("{$relationship}.{$attribute}", $operator, $filterBy);
+    }
+
+
     public static function json(string $attribute, string $path, string $operator = '=', ?string $filterBy = null): self
     {
         $filter = new self($attribute, $operator, $filterBy);
@@ -252,17 +249,14 @@ class Filter
     {
         if ($this->jsonPath) {
             if ($this->isUsingMySQL()) {
-                // Usar operador ->> para extrair o valor como string no MySQL
                 return "{$this->attribute}->>'$.{$this->jsonPath}'";
             }
 
             if ($this->isUsingSQLite()) {
-                // Usar json_extract com caminho JSON correto no SQLite
                 return "json_extract({$this->attribute}, '$.{$this->jsonPath}')";
             }
 
             if ($this->isUsingPostgreSQL()) {
-                // Usar operador ->> para extrair o valor como string no PostgreSQL
                 return "{$this->attribute}->>'{$this->jsonPath}'";
             }
         }
