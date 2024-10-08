@@ -2,6 +2,7 @@
 
 namespace DevactionLabs\FilterablePackage;
 
+use AllowDynamicProperties;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Request;
 use InvalidArgumentException;
@@ -23,6 +24,8 @@ class Filter
     protected bool $startOfDay = false;
     protected bool $isDate = false;
     protected ?string $jsonPath = null;
+
+    protected ?string $relationship = null;
     protected string|int|null $default = null;
     protected ?string $databaseDriver = null;
 
@@ -130,8 +133,13 @@ class Filter
 
     public static function relationship(string $relationship, string $attribute, string $operator = '=', ?string $filterBy = null): self
     {
-        return new self("{$relationship}.{$attribute}", $operator, $filterBy);
+        $filter = new self("{$relationship}.{$attribute}", $operator, $filterBy);
+
+        $filter->relationship = $relationship;
+        $filter->attribute = $attribute;
+        return $filter;
     }
+
 
 
     public static function json(string $attribute, string $path, string $operator = '=', ?string $filterBy = null): self
@@ -323,4 +331,15 @@ class Filter
     {
         return $this->jsonPath;
     }
+
+    public function getFilterBy(): string
+    {
+        return $this->filterBy;
+    }
+
+    public function getRelationship(): ?string
+    {
+        return $this->relationship;
+    }
+
 }

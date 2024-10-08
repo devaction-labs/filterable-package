@@ -10,7 +10,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Request;
 use Mockery;
 
-// Classe de modelo fictícia que usa o trait Filterable
 class FilterableTest extends Model
 {
     use Filterable;

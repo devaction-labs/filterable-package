@@ -75,31 +75,47 @@ trait Filterable
                 continue;
             }
 
-            $attribute = $filter->getAttribute();
-
-            if (!empty($this->filterMap[$attribute])) {
-                $attribute = $this->filterMap[$attribute];
+            if (!empty($this->filterMap[$filter->getFilterBy()])) {
+                $attribute = $this->filterMap[$filter->getFilterBy()];
+            } else {
+                $attribute = $filter->getAttribute();
             }
 
-            // Uso do método getter para acessar jsonPath
+            // Handle JSON paths
             if ($filter->getJsonPath()) {
                 $attribute = DB::raw($attribute);
             }
 
-            if ($filter->getOperator() === 'IN') {
-                $builder->whereIn($attribute, $value);
-            } elseif ($value instanceof Carbon && $filter->isDate()) {
-                $startDate = $value->clone()->startOfDay();
-                $endDate   = $value->clone()->endOfDay();
+            if ($filter->getRelationship()) {
+                $builder->whereHas($filter->getRelationship(), function ($query) use ($filter, $attribute, $value) {
+                    if ($filter->getOperator() === 'IN') {
+                        $query->whereIn($attribute, $value);
+                    } elseif ($value instanceof Carbon && $filter->isDate()) {
+                        $startDate = $value->clone()->startOfDay();
+                        $endDate = $value->clone()->endOfDay();
 
-                $builder->whereBetween($attribute, [$startDate, $endDate]);
+                        $query->whereBetween($attribute, [$startDate, $endDate]);
+                    } else {
+                        $query->where($attribute, $filter->getOperator(), $value);
+                    }
+                });
             } else {
-                $builder->where($attribute, $filter->getOperator(), $value);
+                if ($filter->getOperator() === 'IN') {
+                    $builder->whereIn($attribute, $value);
+                } elseif ($value instanceof Carbon && $filter->isDate()) {
+                    $startDate = $value->clone()->startOfDay();
+                    $endDate = $value->clone()->endOfDay();
+
+                    $builder->whereBetween($attribute, [$startDate, $endDate]);
+                } else {
+                    $builder->where($attribute, $filter->getOperator(), $value);
+                }
             }
         }
 
         return $builder;
     }
+
 
     public function scopeAllowedSorts(Builder $builder, array $allowedSorts, string $defaultSort = ''): Builder
     {
