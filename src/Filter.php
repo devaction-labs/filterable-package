@@ -46,6 +46,10 @@ class Filter
         if (isset($filters[$this->filterBy]) && $this->isValid($filters[$this->filterBy])) {
             $value = $filters[$this->filterBy];
 
+            if ($this->operator === 'BETWEEN' && is_string($value)) {
+                $value = explode(',', $value); // Converte a string em array
+            }
+
             if ($this->jsonPath) {
                 $decoded = null;
                 if (is_string($value)) {

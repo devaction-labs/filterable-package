@@ -114,8 +114,7 @@ class ExpenseController extends Controller
   - `Filter::between('expense_date', 'date_range')` filters records where the `expense_date` column falls between two values provided in the `date_range` parameter in the request.
 
 **API Request Example:**
-```bash
-  GET /api/expenses?filter[date_range]=2023-01-01,2023-12-31
+`` Get /api/expenses?filter[date_range]=2023-01-01,2023-12-31
 ```
 
 ## Custom Filter Mapping
