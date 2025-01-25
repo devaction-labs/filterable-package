@@ -131,6 +131,11 @@ class Filter
         return new self($attribute, '<', $filterBy);
     }
 
+    public static function between(string $attribute, ?string $filterBy = null): self
+    {
+        return new self($attribute, 'BETWEEN', $filterBy);
+    }
+
     public static function relationship(string $relationship, string $attribute, string $operator = '=', ?string $filterBy = null): self
     {
         $filter = new self("{$relationship}.{$attribute}", $operator, $filterBy);
@@ -212,6 +217,18 @@ class Filter
      */
     public function setValue(string|int|array|Carbon|null $value): self
     {
+        if ($this->operator === 'BETWEEN') {
+            if (!is_array($value) || count($value) !== 2) {
+                throw new InvalidArgumentException('The value for BETWEEN must be an array with exactly two elements.');
+            }
+
+            foreach ($value as $item) {
+                if (!is_string($item) && !is_int($item)) {
+                    throw new InvalidArgumentException('The elements in the BETWEEN value array must be of type string or int.');
+                }
+            }
+        }
+
         if (is_array($value)) {
             foreach ($value as $item) {
                 if (!is_string($item)) {

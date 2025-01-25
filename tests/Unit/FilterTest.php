@@ -87,3 +87,19 @@ it('can create a json filter com in match', function () {
         ->and($filter->getOperator())->toBe('IN')
         ->and($filter->getValue())->toBe(['admin', 'user']);
 });
+
+
+it('can create a between filter', function () {
+    global $filters;
+    $filters = ['created_at' => ['2023-01-01', '2023-12-31']];
+
+    $filter = Filter::between('created_at');
+    expect($filter->getAttribute())->toBe('created_at')
+        ->and($filter->getOperator())->toBe('BETWEEN')
+        ->and($filter->getValue())->toBe(['2023-01-01', '2023-12-31']);
+});
+
+it('throws exception for invalid between filter value', function () {
+    $filter = Filter::between('created_at');
+    $filter->setValue(['2023-01-01']);
+})->throws(InvalidArgumentException::class);

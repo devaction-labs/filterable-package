@@ -104,6 +104,19 @@ class ExpenseController extends Controller
 - **Example:**
     - `Filter::json('attributes', 'user.name', 'LIKE', 'user_name')` filters records where the `user.name` attribute in the `attributes` JSON column matches the `user_name` request parameter using a `LIKE` comparison.
     - `Filter::json('attributes', 'user.age', '>', 'user_age')` filters records where the `user.age` attribute in the `attributes` JSON column is greater than the `user_age` request parameter.
+### `Filter::between($attribute, $filterBy = null)`
+
+- **Description:** Filters records where the column value is within a specified range (inclusive).
+- **Parameters:**
+    - `$attribute`: The database column to apply the filter on.
+    - `$filterBy`: (Optional) The request parameter name to map to this filter. Defaults to the attribute name.
+- **Example Usage:**
+  - `Filter::between('expense_date', 'date_range')` filters records where the `expense_date` column falls between two values provided in the `date_range` parameter in the request.
+
+**API Request Example:**
+```bash
+  GET /api/expenses?filter[date_range]=2023-01-01,2023-12-31
+```
 
 ## Custom Filter Mapping
 You can map request parameters to different column names in your database. For example:
@@ -128,20 +141,31 @@ Now, if the request contains `filter[search]=Pizza`, the query will filter the `
 ## Example Usage in API Controller
 
 ```php
-public function index(): ExpenseCollection
-{
-    $expenses = Expense::query()
-        ->with(['category', 'period'])
-        ->filtrable([
-            Filter::like('description', 'search'),
-            Filter::exact('expense_date', 'date'),
-            Filter::json('attributes', 'user.name', 'LIKE', 'user_name'),
-            Filter::json('attributes', 'user.age', '>', 'user_age'),
-        ])
-        ->customPaginate();
-
-    return new ExpenseCollection($expenses);
-}
+      namespace App\Http\Controllers\Api\Finance;
+      
+      use App\Http\Controllers\Controller;
+      use App\Http\Resources\ExpenseCollection;
+      use App\Models\Expense;
+      use DevactionLabs\FilterablePackage\Filter;
+      
+      class ExpenseController extends Controller
+      {
+          public function index(): ExpenseCollection
+          {
+              $expenses = Expense::query()
+                  ->with(['category', 'period'])
+                  ->filtrable([
+                      Filter::like('description', 'search'),
+                      Filter::exact('expense_date', 'date'),
+                      Filter::between('expense_date', 'date_range'),
+                      Filter::json('attributes', 'user.name', 'LIKE', 'user_name'),
+                      Filter::json('attributes', 'user.age', '>', 'user_age'),
+                  ])
+                  ->customPaginate();
+      
+              return new ExpenseCollection($expenses);
+          }
+      }
 ```
 
 ## Pagination and Sorting
