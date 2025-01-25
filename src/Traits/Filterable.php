@@ -84,9 +84,10 @@ trait Filterable
             if ($filter->getOperator() === 'BETWEEN') {
                 if (is_array($value) && count($value) === 2) {
                     $builder->whereBetween($attribute, $value);
-                } else {
-                    throw new InvalidArgumentException('The value for BETWEEN must be an array with exactly two elements.');
+                    continue;
                 }
+
+                throw new InvalidArgumentException('The value for BETWEEN must be an array with exactly two elements.');
             }
 
 
