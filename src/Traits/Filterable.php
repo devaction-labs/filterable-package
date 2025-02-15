@@ -25,7 +25,7 @@ trait Filterable
      */
     public function scopeCustomPaginate(Builder $builder, bool $useSimplePaginate = false, ?array $data = null): Paginator|LengthAwarePaginator
     {
-        $data = $data ?? Request::capture()->only('per_page', 'sort');
+        $data = $data ?? request()->only('per_page', 'sort');
 
         $order   = 'ASC';
         $perPage = $data['per_page'] ?? 15;
