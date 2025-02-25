@@ -9,12 +9,12 @@
             "email": "alex@devaction.com.br"
         }
     ],
-    "version": "v1.0.14",
+    "version": "v1.0.15",
     "require": {
         "php": "^8.2|^8.3|^8.4",
-        "illuminate/database": "^11.21",
-        "illuminate/http": "^11.25",
-        "illuminate/support": "^11.21",
+        "illuminate/database": "^11|^12",
+        "illuminate/http": "^11|^12",
+        "illuminate/support": "^11|^12",
         "vlucas/phpdotenv": "^5.6"
     },
     "require-dev": {
