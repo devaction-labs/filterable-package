@@ -5,6 +5,7 @@ namespace DevactionLabs\FilterablePackage;
 use Closure;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Log;
 
 class CacheManager
 {
@@ -50,7 +51,18 @@ class CacheManager
 
         $cacheKey = static::getPrefix() . $key;
 
-        $result = Cache::tags(['filterable'])->remember($cacheKey, $ttl, $callback);
+        $result = $callback();
+
+        try {
+            if (is_object($result) && method_exists($result, 'toArray')) {
+                $cacheData = $result->toArray();
+                Cache::tags(['filterable'])->put($cacheKey, $cacheData, $ttl);
+            } else {
+                Cache::tags(['filterable'])->put($cacheKey, $result, $ttl);
+            }
+        } catch (\Exception $e) {
+             Log::error('Erro ao armazenar em cache: ' . $e->getMessage());
+        }
 
         static::$memoryCache[$key] = $result;
         static::$memoryCacheTimestamps[$key] = time() + static::getMemoryCacheTtl();
