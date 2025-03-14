@@ -12,6 +12,7 @@
     "version": "v1.0.15",
     "require": {
         "php": "^8.2|^8.3|^8.4",
+        "illuminate/cache": "^12.2",
         "illuminate/database": "^11|^12",
         "illuminate/http": "^11|^12",
         "illuminate/support": "^11|^12",
@@ -23,7 +24,7 @@
         "pestphp/pest": "^2.35",
         "phpstan/phpstan": "^1.11",
         "phpunit/phpunit": "^10.5",
-        "rector/rector": "^0.18.13",
+        "rector/rector": "^1.2",
         "roave/security-advisories": "dev-latest",
         "symfony/var-dumper": "^6.4.0|^7.0.0"
     },
