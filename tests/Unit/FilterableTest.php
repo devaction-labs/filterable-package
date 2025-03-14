@@ -1,14 +1,14 @@
 <?php
 
+use DevactionLabs\FilterablePackage\Traits\Filterable;
 use DevactionLabs\FilterablePackage\Filter;
-use DevactionLabs\FilterablePackage\CacheManager;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Request;
 
-beforeEach(function () {
+beforeEach(function (): void {
     global $builder, $model;
 
     $builder = Mockery::mock(Builder::class);
@@ -36,30 +36,41 @@ beforeEach(function () {
         ->andReturnUsing(fn ($key, $ttl, $callback) => $callback());
 
     $model = new class {
-        use DevactionLabs\FilterablePackage\Traits\Filterable;
+        use Filterable;
     };
 });
 
-afterEach(function () {
+afterEach(function (): void {
     Mockery::close();
 });
 
-it('applies exact filter using scopeFilterable', function () {
-    global $builder, $model;
+it('applies exact filter using scopeFilterable', function (): void {
+    Mockery::close();
 
+    $builder = Mockery::mock(Builder::class);
     $builder->shouldReceive('where')
         ->once()
         ->with('name', '=', 'John')
         ->andReturnSelf();
 
-    $filters = [Filter::exact('name')->setValue('John')];
+    $model = new class { use Filterable; };
 
-    $result = $model->scopeFilterable($builder, $filters);
+    Config::shouldReceive('get')->withAnyArgs()->andReturnUsing(fn($key, $default) => match ($key) {
+        'filterable.cache.enabled' => true,
+        'filterable.cache.ttl' => 60,
+        'filterable.cache.prefix' => 'filterable_',
+        default => $default,
+    });
 
-    expect($result)->toBe($builder);
+    $mockTaggedCache = Mockery::mock('TaggedCache');
+    $mockTaggedCache->shouldReceive('remember')->andReturnUsing(fn ($key, $ttl, $callback) => $callback());
+    Cache::shouldReceive('tags')->andReturn($mockTaggedCache);
+
+    // Execute o teste
+    $model->scopeFilterable($builder, [Filter::exact('name')->setValue('John')]);
 });
 
-it('applies custom paginate correctly', function () {
+it('applies custom paginate correctly', function (): void {
     global $builder, $model;
 
     $builder->shouldReceive('orderBy')

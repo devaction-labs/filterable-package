@@ -25,16 +25,19 @@ class CacheManager
         return Config::get('filterable.cache.prefix', 'filterable_');
     }
 
-    public static function remember(string $key, int $ttl, Closure $callback)
+    public static function remember(string $key, int $ttl, Closure $callback): mixed
     {
         if (isset(static::$memoryCache[$key])) {
             return static::$memoryCache[$key];
         }
 
-        $value = Cache::tags(['filterable'])->remember($key, $ttl, $callback);
-        static::$memoryCache[$key] = $value;
+        if (!static::isEnabled()) {
+            return static::$memoryCache[$key] = $callback();
+        }
 
-        return $value;
+        $cacheKey = static::getPrefix() . $key;
+
+        return static::$memoryCache[$key] = Cache::tags(['filterable'])->remember($cacheKey, $ttl, $callback);
     }
 
     public static function clear(): void

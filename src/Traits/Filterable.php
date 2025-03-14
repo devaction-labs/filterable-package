@@ -9,6 +9,7 @@ use Illuminate\Contracts\Pagination\Paginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Request;
 use InvalidArgumentException;
+use JsonException;
 
 trait Filterable
 {
@@ -16,14 +17,17 @@ trait Filterable
     protected array $allowedSorts = [];
     protected array $filterMap = [];
 
+    /**
+     * @throws JsonException
+     */
     public function scopeCustomPaginate(
         Builder $builder,
         bool $useSimplePaginate = false,
         ?array $data = null
     ): Paginator|LengthAwarePaginator {
-        $data ??= Request::only('per_page', 'sort');
+        $data ??= Request::only('per_page');
 
-        $cacheKey = CacheManager::getPrefix().'paginate_'.md5(json_encode($data));
+        $cacheKey = CacheManager::getPrefix().'paginate_'.md5(json_encode($data, JSON_THROW_ON_ERROR));
 
         return CacheManager::remember($cacheKey, CacheManager::getTtl(), function () use ($builder, $useSimplePaginate, $data) {
             $order   = 'ASC';
@@ -34,8 +38,8 @@ trait Filterable
             }
 
             if (!empty($data['sort'])) {
-                $orderBy = ltrim($data['sort'], '-');
-                $order = str_starts_with($data['sort'], '-') ? 'DESC' : 'ASC';
+                $orderBy = ltrim((string) $data['sort'], '-');
+                $order = str_starts_with((string) $data['sort'], '-') ? 'DESC' : 'ASC';
 
                 if ($this->allowedSorts && !in_array($orderBy, $this->allowedSorts, true)) {
                     throw new InvalidArgumentException("Invalid sort [$orderBy]");
@@ -52,11 +56,14 @@ trait Filterable
         });
     }
 
+    /**
+     * @throws JsonException
+     */
     public function scopeFilterable(Builder $builder, array $filters): Builder
     {
-        $cacheKey = CacheManager::getPrefix().'filters_'.md5(json_encode(Request::query('filter', [])));
+        $cacheKey = CacheManager::getPrefix().'filters_'.md5(json_encode(Request::query('filter', []), JSON_THROW_ON_ERROR));
 
-        return CacheManager::remember($cacheKey, CacheManager::getTtl(), function () use ($builder, $filters) {
+        return CacheManager::remember($cacheKey, CacheManager::getTtl(), function () use ($builder, $filters): Builder {
             foreach ($filters as $filter) {
                 if (!$filter->isValid($filter->getValue())) {
                     continue;
@@ -68,7 +75,7 @@ trait Filterable
                 $value = $filter->getValue();
 
                 if ($filter->getRelationship()) {
-                    $builder->whereHas($filter->getRelationship(), function ($query) use ($attribute, $operator, $value) {
+                    $builder->whereHas($filter->getRelationship(), function ($query) use ($attribute, $operator, $value): void {
                         $query->where($attribute, $operator, $value);
                     });
                     continue;
