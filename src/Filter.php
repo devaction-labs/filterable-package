@@ -24,6 +24,7 @@ class Filter
     protected ?string $jsonPath = null;
 
     protected ?string $relationship = null;
+    protected ?array $nestedRelationships = null;
     protected string|int|null $default = null;
     protected ?string $databaseDriver = null;
 
@@ -146,7 +147,19 @@ class Filter
         return $filter;
     }
 
+    /**
+     * Novo método para criar filtros com relacionamentos aninhados
+     */
+    public static function nestedRelationship(array $relationships, string $attribute, string $operator = '=', ?string $filterBy = null): self
+    {
+        $relationshipPath = implode('.', $relationships);
+        $filter = new self("{$relationshipPath}.{$attribute}", $operator, $filterBy);
 
+        $filter->relationship = $relationships[0];
+        $filter->nestedRelationships = $relationships;
+        $filter->attribute = $attribute;
+        return $filter;
+    }
 
     public static function json(string $attribute, string $path, string $operator = '=', ?string $filterBy = null): self
     {
@@ -355,4 +368,8 @@ class Filter
         return $this->relationship;
     }
 
+    public function getNestedRelationships(): ?array
+    {
+        return $this->nestedRelationships;
+    }
 }

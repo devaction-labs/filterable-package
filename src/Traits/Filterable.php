@@ -16,6 +16,7 @@ trait Filterable
     protected string $defaultSort = '';
     protected array $allowedSorts = [];
     protected array $filterMap = [];
+    protected array $withRelations = [];
 
     /**
      * @throws JsonException
@@ -50,6 +51,10 @@ trait Filterable
                 $builder->orderBy($orderBy, $order);
             }
 
+            if (!empty($this->withRelations)) {
+                $builder->with($this->withRelations);
+            }
+
             return $useSimplePaginate
                 ? $builder->simplePaginate($perPage)->appends($data)
                 : $builder->paginate($perPage)->appends($data);
@@ -64,17 +69,21 @@ trait Filterable
         $cacheKey = CacheManager::getPrefix().'filters_'.md5(json_encode(Request::query('filter', []), JSON_THROW_ON_ERROR));
 
         return CacheManager::remember($cacheKey, CacheManager::getTtl(), function () use ($builder, $filters): Builder {
+            $relations = [];
+
             foreach ($filters as $filter) {
                 if (!$filter->isValid($filter->getValue())) {
                     continue;
                 }
 
                 $attribute = $this->filterMap[$filter->getFilterBy()] ?? $filter->getAttribute();
-
                 $operator = $filter->getOperator();
                 $value = $filter->getValue();
 
                 if ($filter->getRelationship()) {
+                    // Armazenar relação para eager loading
+                    $relations[] = $filter->getRelationship();
+
                     $builder->whereHas($filter->getRelationship(), function ($query) use ($attribute, $operator, $value): void {
                         $query->where($attribute, $operator, $value);
                     });
@@ -88,7 +97,24 @@ trait Filterable
                 };
             }
 
+            if (!empty($relations)) {
+                $this->withRelations = array_unique(array_merge($this->withRelations ?? [], $relations));
+                $builder->with($this->withRelations);
+            }
+
             return $builder;
         });
+    }
+
+    public function setWithRelations(array $relations): self
+    {
+        $this->withRelations = $relations;
+        return $this;
+    }
+
+    public function addWithRelation(string $relation): self
+    {
+        $this->withRelations[] = $relation;
+        return $this;
     }
 }
