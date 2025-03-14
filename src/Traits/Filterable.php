@@ -28,36 +28,38 @@ trait Filterable
     ): Paginator|LengthAwarePaginator {
         $data ??= Request::only('per_page');
 
-        $cacheKey = CacheManager::getPrefix().'paginate_'.md5(json_encode($data, JSON_THROW_ON_ERROR));
+        $cacheKey = CacheManager::getPrefix() . 'paginate_' . md5(json_encode($data, JSON_THROW_ON_ERROR));
 
-        return CacheManager::remember($cacheKey, CacheManager::getTtl(), function () use ($builder, $useSimplePaginate, $data) {
-            $order   = 'ASC';
-            $perPage = (int) ($data['per_page'] ?? 15);
+        $order = 'ASC';
+        $perPage = (int) ($data['per_page'] ?? 15);
 
-            if ($this->defaultSort && empty($data['sort'])) {
-                $data['sort'] = $this->defaultSort;
+        if ($this->defaultSort && empty($data['sort'])) {
+            $data['sort'] = $this->defaultSort;
+        }
+
+        if (!empty($data['sort'])) {
+            $orderBy = ltrim((string) $data['sort'], '-');
+            $order = str_starts_with((string) $data['sort'], '-') ? 'DESC' : 'ASC';
+
+            if ($this->allowedSorts && !in_array($orderBy, $this->allowedSorts, true)) {
+                throw new InvalidArgumentException("Invalid sort [$orderBy]");
             }
 
-            if (!empty($data['sort'])) {
-                $orderBy = ltrim((string) $data['sort'], '-');
-                $order = str_starts_with((string) $data['sort'], '-') ? 'DESC' : 'ASC';
+            $orderBy = $this->filterMap[$orderBy] ?? $orderBy;
 
-                if ($this->allowedSorts && !in_array($orderBy, $this->allowedSorts, true)) {
-                    throw new InvalidArgumentException("Invalid sort [$orderBy]");
-                }
+            $builder->orderBy($orderBy, $order);
+        }
 
-                $orderBy = $this->filterMap[$orderBy] ?? $orderBy;
+        if (!empty($this->withRelations)) {
+            $builder->with($this->withRelations);
+        }
 
-                $builder->orderBy($orderBy, $order);
-            }
+        $result = $useSimplePaginate
+            ? $builder->simplePaginate($perPage)->appends($data)
+            : $builder->paginate($perPage)->appends($data);
 
-            if (!empty($this->withRelations)) {
-                $builder->with($this->withRelations);
-            }
-
-            return $useSimplePaginate
-                ? $builder->simplePaginate($perPage)->appends($data)
-                : $builder->paginate($perPage)->appends($data);
+        return CacheManager::remember($cacheKey, CacheManager::getTtl(), function () use ($result) {
+            return $result;
         });
     }
 
@@ -66,43 +68,69 @@ trait Filterable
      */
     public function scopeFilterable(Builder $builder, array $filters): Builder
     {
-        $cacheKey = CacheManager::getPrefix().'filters_'.md5(json_encode(Request::query('filter', []), JSON_THROW_ON_ERROR));
+        $relations = [];
 
-        return CacheManager::remember($cacheKey, CacheManager::getTtl(), function () use ($builder, $filters): Builder {
-            $relations = [];
-
-            foreach ($filters as $filter) {
-                if (!$filter->isValid($filter->getValue())) {
-                    continue;
-                }
-
-                $attribute = $this->filterMap[$filter->getFilterBy()] ?? $filter->getAttribute();
-                $operator = $filter->getOperator();
-                $value = $filter->getValue();
-
-                if ($filter->getRelationship()) {
-                    // Armazenar relação para eager loading
-                    $relations[] = $filter->getRelationship();
-
-                    $builder->whereHas($filter->getRelationship(), function ($query) use ($attribute, $operator, $value): void {
-                        $query->where($attribute, $operator, $value);
-                    });
-                    continue;
-                }
-
-                match ($operator) {
-                    'BETWEEN' => $builder->whereBetween($attribute, $value),
-                    'IN'      => $builder->whereIn($attribute, $value),
-                    default   => $builder->where($attribute, $operator, $value),
-                };
+        foreach ($filters as $filter) {
+            if (!$filter->isValid($filter->getValue())) {
+                continue;
             }
 
-            if (!empty($relations)) {
-                $this->withRelations = array_unique(array_merge($this->withRelations ?? [], $relations));
-                $builder->with($this->withRelations);
+            $attribute = $this->filterMap[$filter->getFilterBy()] ?? $filter->getAttribute();
+            $operator = $filter->getOperator();
+            $value = $filter->getValue();
+
+            if ($filter->getRelationship()) {
+                $relations[] = $filter->getRelationship();
+
+                $builder->whereHas($filter->getRelationship(), function ($query) use ($attribute, $operator, $value): void {
+                    $query->where($attribute, $operator, $value);
+                });
+                continue;
             }
 
-            return $builder;
+            if ($filter->getNestedRelationships()) {
+                $relations[] = implode('.', $filter->getNestedRelationships());
+
+                $nestedRelations = $filter->getNestedRelationships();
+                $firstRelation = array_shift($nestedRelations);
+
+                $builder->whereHas($firstRelation, function ($query) use ($nestedRelations, $attribute, $operator, $value): void {
+                    $this->applyNestedWhereHas($query, $nestedRelations, $attribute, $operator, $value);
+                });
+                continue;
+            }
+
+            match ($operator) {
+                'BETWEEN' => $builder->whereBetween($attribute, $value),
+                'IN'      => $builder->whereIn($attribute, $value),
+                default   => $builder->where($attribute, $operator, $value),
+            };
+        }
+
+        if (!empty($relations)) {
+            $this->withRelations = array_unique(array_merge($this->withRelations ?? [], $relations));
+            $builder->with($this->withRelations);
+        }
+
+        $cacheKey = CacheManager::getPrefix() . 'filters_' . md5(json_encode(Request::query('filter', []), JSON_THROW_ON_ERROR));
+
+        CacheManager::remember($cacheKey, CacheManager::getTtl(), function () {
+            return true;
+        });
+
+        return $builder;
+    }
+
+    private function applyNestedWhereHas($query, array $relationships, string $attribute, string $operator, $value): void
+    {
+        if (empty($relationships)) {
+            $query->where($attribute, $operator, $value);
+            return;
+        }
+
+        $relation = array_shift($relationships);
+        $query->whereHas($relation, function ($q) use ($relationships, $attribute, $operator, $value) {
+            $this->applyNestedWhereHas($q, $relationships, $attribute, $operator, $value);
         });
     }
 
