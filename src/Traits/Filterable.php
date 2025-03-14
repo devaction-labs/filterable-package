@@ -3,13 +3,13 @@
 namespace DevactionLabs\FilterablePackage\Traits;
 
 use DevactionLabs\FilterablePackage\Filter;
-use Carbon\Carbon;
+use DevactionLabs\FilterablePackage\CacheManager;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Contracts\Pagination\Paginator;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Request;
 use InvalidArgumentException;
-use Illuminate\Support\Facades\DB;
+use JsonException;
 
 trait Filterable
 {
@@ -18,126 +18,77 @@ trait Filterable
     protected array $filterMap = [];
 
     /**
-     * @param Builder $builder
-     * @param bool $useSimplePaginate
-     * @param array<string, mixed>|null $data
-     * @return Paginator|LengthAwarePaginator
+     * @throws JsonException
      */
-    public function scopeCustomPaginate(Builder $builder, bool $useSimplePaginate = false, ?array $data = null): Paginator|LengthAwarePaginator
-    {
-        $data = $data ?? request()->only('per_page', 'sort');
+    public function scopeCustomPaginate(
+        Builder $builder,
+        bool $useSimplePaginate = false,
+        ?array $data = null
+    ): Paginator|LengthAwarePaginator {
+        $data ??= Request::only('per_page');
 
-        $order   = 'ASC';
-        $perPage = $data['per_page'] ?? 15;
+        $cacheKey = CacheManager::getPrefix().'paginate_'.md5(json_encode($data, JSON_THROW_ON_ERROR));
 
-        if ($this->defaultSort && empty($data['sort'])) {
-            $data['sort'] = $this->defaultSort;
-        }
+        return CacheManager::remember($cacheKey, CacheManager::getTtl(), function () use ($builder, $useSimplePaginate, $data) {
+            $order   = 'ASC';
+            $perPage = (int) ($data['per_page'] ?? 15);
 
-        if (!empty($data['sort'])) {
-            $orderBy = $data['sort'];
-
-            if ($data['sort'][0] === '-') {
-                $orderBy = substr($data['sort'], 1);
-                $order   = 'DESC';
+            if ($this->defaultSort && empty($data['sort'])) {
+                $data['sort'] = $this->defaultSort;
             }
 
-            if (!empty($this->allowedSorts) && !in_array($orderBy, $this->allowedSorts, true)) {
-                throw new InvalidArgumentException("The sort value [$orderBy] is not acceptable");
+            if (!empty($data['sort'])) {
+                $orderBy = ltrim((string) $data['sort'], '-');
+                $order = str_starts_with((string) $data['sort'], '-') ? 'DESC' : 'ASC';
+
+                if ($this->allowedSorts && !in_array($orderBy, $this->allowedSorts, true)) {
+                    throw new InvalidArgumentException("Invalid sort [$orderBy]");
+                }
+
+                $orderBy = $this->filterMap[$orderBy] ?? $orderBy;
+
+                $builder->orderBy($orderBy, $order);
             }
 
-            if (!empty($this->filterMap[$orderBy])) {
-                $orderBy = $this->filterMap[$orderBy];
-            }
-
-            $builder->orderBy($orderBy, $order);
-        }
-
-        return $useSimplePaginate
-            ? $builder->simplePaginate((int) $perPage)->appends($data)
-            : $builder->paginate((int) $perPage)->appends($data);
+            return $useSimplePaginate
+                ? $builder->simplePaginate($perPage)->appends($data)
+                : $builder->paginate($perPage)->appends($data);
+        });
     }
 
-    public function scopeFiltrable(Builder $builder, array $filters): Builder
-    {
-        return $this->scopeFilterable($builder, $filters);
-    }
+    /**
+     * @throws JsonException
+     */
     public function scopeFilterable(Builder $builder, array $filters): Builder
     {
-        foreach ($filters as $filter) {
-            if (!($filter instanceof Filter)) {
-                throw new InvalidArgumentException('Filterable must be an instance of Filter');
-            }
+        $cacheKey = CacheManager::getPrefix().'filters_'.md5(json_encode(Request::query('filter', []), JSON_THROW_ON_ERROR));
 
-            $value = $filter->getValue();
-
-            if (!$filter->isValid($value)) {
-                continue;
-            }
-
-            if (!empty($this->filterMap[$filter->getFilterBy()])) {
-                $attribute = $this->filterMap[$filter->getFilterBy()];
-            } else {
-                $attribute = $filter->getAttribute();
-            }
-
-            if ($filter->getOperator() === 'BETWEEN') {
-                if (is_array($value) && count($value) === 2) {
-                    $builder->whereBetween($attribute, $value);
+        return CacheManager::remember($cacheKey, CacheManager::getTtl(), function () use ($builder, $filters): Builder {
+            foreach ($filters as $filter) {
+                if (!$filter->isValid($filter->getValue())) {
                     continue;
                 }
 
-                throw new InvalidArgumentException('The value for BETWEEN must be an array with exactly two elements.');
-            }
+                $attribute = $this->filterMap[$filter->getFilterBy()] ?? $filter->getAttribute();
 
+                $operator = $filter->getOperator();
+                $value = $filter->getValue();
 
-            if ($filter->getJsonPath()) {
-                $attribute = DB::raw($attribute);
-            }
-
-            if ($filter->getRelationship()) {
-                $builder->whereHas($filter->getRelationship(), function ($query) use ($filter, $attribute, $value) {
-                    if ($filter->getOperator() === 'IN') {
-                        $query->whereIn($attribute, $value);
-                    } elseif ($value instanceof Carbon && $filter->isDate()) {
-                        $startDate = $value->clone()->startOfDay();
-                        $endDate = $value->clone()->endOfDay();
-
-                        $query->whereBetween($attribute, [$startDate, $endDate]);
-                    } else {
-                        $query->where($attribute, $filter->getOperator(), $value);
-                    }
-                });
-            } else {
-                if ($filter->getOperator() === 'IN') {
-                    $builder->whereIn($attribute, $value);
-                } elseif ($value instanceof Carbon && $filter->isDate()) {
-                    $startDate = $value->clone()->startOfDay();
-                    $endDate = $value->clone()->endOfDay();
-
-                    $builder->whereBetween($attribute, [$startDate, $endDate]);
-                } else {
-                    $builder->where($attribute, $filter->getOperator(), $value);
+                if ($filter->getRelationship()) {
+                    $builder->whereHas($filter->getRelationship(), function ($query) use ($attribute, $operator, $value): void {
+                        $query->where($attribute, $operator, $value);
+                    });
+                    continue;
                 }
+
+                match ($operator) {
+                    'BETWEEN' => $builder->whereBetween($attribute, $value),
+                    'IN'      => $builder->whereIn($attribute, $value),
+                    default   => $builder->where($attribute, $operator, $value),
+                };
             }
-        }
 
-        return $builder;
-    }
-
-
-    public function scopeAllowedSorts(Builder $builder, array $allowedSorts, string $defaultSort = ''): Builder
-    {
-        $this->defaultSort  = $defaultSort;
-        $this->allowedSorts = $allowedSorts;
-
-        return $builder;
-    }
-
-    public function scopeFilterMap(Builder $builder, array $filterMap): Builder
-    {
-        $this->filterMap = $filterMap;
-
-        return $builder;
+            return $builder;
+        });
     }
 }

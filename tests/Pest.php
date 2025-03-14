@@ -1,5 +1,10 @@
 <?php
 
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Request;
+use Tests\TestCase;
+
 /*
 |--------------------------------------------------------------------------
 | Test Case
@@ -11,7 +16,7 @@
 |
 */
 
-// uses(Tests\TestCase::class)->in('Feature');
+uses(TestCase::class)->in('Unit', 'Feature');
 
 /*
 |--------------------------------------------------------------------------
@@ -24,9 +29,7 @@
 |
 */
 
-expect()->extend('toBeOne', function () {
-    return $this->toBe(1);
-});
+expect()->extend('toBeOne', fn() => $this->toBe(1));
 
 /*
 |--------------------------------------------------------------------------
@@ -39,7 +42,17 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
+function something(): void
 {
     // ..
 }
+
+beforeEach(function () {
+    Cache::clearResolvedInstances();
+    Config::clearResolvedInstances();
+    Request::clearResolvedInstances();
+});
+
+afterEach(function () {
+    Mockery::close();
+});

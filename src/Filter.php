@@ -17,8 +17,6 @@ class Filter
      * @var string|array<int, string>|Carbon|int|null
      */
     protected string|array|Carbon|int|null $value = null;
-
-    protected string $operator;
     protected string $likePattern = '%{{value}}%';
     protected bool $endOfDay = false;
     protected bool $startOfDay = false;
@@ -30,11 +28,10 @@ class Filter
     protected ?string $databaseDriver = null;
 
 
-    public function __construct(string $attribute, string $operator, ?string $filterBy = null)
+    public function __construct(string $attribute, protected string $operator, ?string $filterBy = null)
     {
         $this->filterBy = $filterBy ?? $attribute;
         $this->attribute = $attribute;
-        $this->operator = $operator;
 
         $this->setValueFromRequest();
     }
@@ -50,12 +47,12 @@ class Filter
                 $value = explode(',', $value); // Converte a string em array
             }
 
-            if ($this->jsonPath) {
+            if ($this->jsonPath !== null && $this->jsonPath !== '' && $this->jsonPath !== '0') {
                 $decoded = null;
                 if (is_string($value)) {
                     try {
                         $decoded = json_decode($value, true, 512, JSON_THROW_ON_ERROR);
-                    } catch (JsonException $e) {
+                    } catch (JsonException) {
                         $decoded = null;
                     }
                 }
@@ -88,7 +85,7 @@ class Filter
 
     public function isValid(mixed $value): bool
     {
-        if (is_array($value) && empty($value)) {
+        if ($value === []) {
             return false;
         }
 
@@ -217,7 +214,6 @@ class Filter
 
     /**
      * @param string|int|array<int, string>|Carbon|null $value
-     * @return self
      */
     public function setValue(string|int|array|Carbon|null $value): self
     {
@@ -247,7 +243,6 @@ class Filter
 
     /**
      * @param string|int|array<int, string>|Carbon|null $value
-     * @return Carbon
      */
     private function convertToCarbon(string|int|array|Carbon|null $value): Carbon
     {
@@ -276,7 +271,7 @@ class Filter
 
     public function getAttribute(): string
     {
-        if ($this->jsonPath) {
+        if ($this->jsonPath !== null && $this->jsonPath !== '' && $this->jsonPath !== '0') {
             if ($this->isUsingMySQL()) {
                 return "{$this->attribute}->>'$.{$this->jsonPath}'";
             }
@@ -325,9 +320,6 @@ class Filter
 
     /**
      * Define o driver do banco de dados a ser utilizado.
-     *
-     * @param string $driver
-     * @return self
      */
     public function setDatabaseDriver(string $driver): self
     {

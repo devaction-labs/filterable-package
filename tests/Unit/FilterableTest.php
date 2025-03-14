@@ -1,48 +1,76 @@
 <?php
 
-namespace Tests\Unit;
-
-use DevactionLabs\FilterablePackage\Filter;
 use DevactionLabs\FilterablePackage\Traits\Filterable;
-use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use DevactionLabs\FilterablePackage\Filter;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Request;
-use Mockery;
 
-class FilterableTest extends Model
-{
-    use Filterable;
-}
-
-beforeEach(function () {
+beforeEach(function (): void {
     global $builder, $model;
 
-    // Mock do Builder
     $builder = Mockery::mock(Builder::class);
 
-    // Mock do Request facade
     Request::shouldReceive('query')
-        ->andReturn(['name' => 'John']);  // Mockando o valor esperado
+        ->andReturn(['name' => 'John']);
 
-    // Instância do modelo
-    $model = new FilterableTest();
+    Config::shouldReceive('get')
+        ->with('filterable.cache.enabled', true)
+        ->andReturn(true);
+
+    Config::shouldReceive('get')
+        ->with('filterable.cache.ttl', 60)
+        ->andReturn(60);
+
+    Config::shouldReceive('get')
+        ->with('filterable.cache.prefix', 'filterable_')
+        ->andReturn('filterable_');
+
+    Cache::shouldReceive('tags')
+        ->with(['filterable'])
+        ->andReturnSelf();
+
+    Cache::shouldReceive('remember')
+        ->andReturnUsing(fn ($key, $ttl, $callback) => $callback());
+
+    $model = new class {
+        use Filterable;
+    };
 });
 
-it('applies exact filter using scopeFilterable', function () {
-    global $builder, $model;
+afterEach(function (): void {
+    Mockery::close();
+});
 
+it('applies exact filter using scopeFilterable', function (): void {
+    Mockery::close();
+
+    $builder = Mockery::mock(Builder::class);
     $builder->shouldReceive('where')
         ->once()
         ->with('name', '=', 'John')
         ->andReturnSelf();
 
-    $filters = [Filter::exact('name')->setValue('John')]; // Setando explicitamente o valor
-    $model->scopeFilterable($builder, $filters);
+    $model = new class { use Filterable; };
+
+    Config::shouldReceive('get')->withAnyArgs()->andReturnUsing(fn($key, $default) => match ($key) {
+        'filterable.cache.enabled' => true,
+        'filterable.cache.ttl' => 60,
+        'filterable.cache.prefix' => 'filterable_',
+        default => $default,
+    });
+
+    $mockTaggedCache = Mockery::mock('TaggedCache');
+    $mockTaggedCache->shouldReceive('remember')->andReturnUsing(fn ($key, $ttl, $callback) => $callback());
+    Cache::shouldReceive('tags')->andReturn($mockTaggedCache);
+
+    // Execute o teste
+    $model->scopeFilterable($builder, [Filter::exact('name')->setValue('John')]);
 });
 
-
-it('applies pagination using scopeCustomPaginate', function () {
+it('applies custom paginate correctly', function (): void {
     global $builder, $model;
 
     $builder->shouldReceive('orderBy')
@@ -61,6 +89,10 @@ it('applies pagination using scopeCustomPaginate', function () {
         ->with(10)
         ->andReturn($paginator);
 
-    $data = ['per_page' => 10, 'sort' => '-created_at'];
-    $model->scopeCustomPaginate($builder, false, $data);
+    $result = $model->scopeCustomPaginate($builder, false, [
+        'per_page' => 10,
+        'sort' => '-created_at'
+    ]);
+
+    expect($result)->toBe($paginator);
 });
