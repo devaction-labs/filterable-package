@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\Config;
 class CacheManager
 {
     protected static array $memoryCache = [];
+    protected static int $defaultMemoryCacheTtl = 60;
+    protected static array $memoryCacheTimestamps = [];
 
     public static function isEnabled(): bool
     {
@@ -25,24 +27,56 @@ class CacheManager
         return Config::get('filterable.cache.prefix', 'filterable_');
     }
 
+    public static function getMemoryCacheTtl(): int
+    {
+        return Config::get('filterable.cache.memory_ttl', static::$defaultMemoryCacheTtl);
+    }
+
     public static function remember(string $key, int $ttl, Closure $callback): mixed
     {
         if (isset(static::$memoryCache[$key])) {
-            return static::$memoryCache[$key];
+            if (time() < static::$memoryCacheTimestamps[$key]) {
+                return static::$memoryCache[$key];
+            }
+            unset(static::$memoryCache[$key], static::$memoryCacheTimestamps[$key]);
         }
 
         if (!static::isEnabled()) {
-            return static::$memoryCache[$key] = $callback();
+            $result = $callback();
+            static::$memoryCache[$key] = $result;
+            static::$memoryCacheTimestamps[$key] = time() + static::getMemoryCacheTtl();
+            return $result;
         }
 
         $cacheKey = static::getPrefix() . $key;
 
-        return static::$memoryCache[$key] = Cache::tags(['filterable'])->remember($cacheKey, $ttl, $callback);
+        $result = Cache::tags(['filterable'])->remember($cacheKey, $ttl, $callback);
+
+        static::$memoryCache[$key] = $result;
+        static::$memoryCacheTimestamps[$key] = time() + static::getMemoryCacheTtl();
+
+        return $result;
     }
 
     public static function clear(): void
     {
         Cache::tags(['filterable'])->flush();
+        static::clearMemoryCache();
+    }
+
+    public static function clearMemoryCache(): void
+    {
         static::$memoryCache = [];
+        static::$memoryCacheTimestamps = [];
+    }
+
+    public static function forget(string $key): void
+    {
+        $cacheKey = static::getPrefix() . $key;
+        Cache::tags(['filterable'])->forget($cacheKey);
+
+        if (isset(static::$memoryCache[$key])) {
+            unset(static::$memoryCache[$key], static::$memoryCacheTimestamps[$key]);
+        }
     }
 }
