@@ -16,7 +16,7 @@ use Tests\TestCase;
 |
 */
 
-uses(TestCase::class)->in('Unit', 'Feature');
+uses(TestCase::class)->in('Feature', 'Unit');
 
 /*
 |--------------------------------------------------------------------------
@@ -47,12 +47,12 @@ function something(): void
     // ..
 }
 
-beforeEach(function () {
+beforeEach(function (): void {
     Cache::clearResolvedInstances();
     Config::clearResolvedInstances();
     Request::clearResolvedInstances();
 });
 
-afterEach(function () {
+afterEach(function (): void {
     Mockery::close();
 });

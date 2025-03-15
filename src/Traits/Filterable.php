@@ -3,146 +3,185 @@
 namespace DevactionLabs\FilterablePackage\Traits;
 
 use DevactionLabs\FilterablePackage\Filter;
-use DevactionLabs\FilterablePackage\CacheManager;
+use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Contracts\Pagination\Paginator;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Request;
+use Illuminate\Http\Request;
 use InvalidArgumentException;
-use JsonException;
+use Illuminate\Support\Facades\DB;
 
 trait Filterable
 {
     protected string $defaultSort = '';
     protected array $allowedSorts = [];
     protected array $filterMap = [];
-    protected array $withRelations = [];
 
-    /**
-     * @throws JsonException
-     */
-    public function scopeCustomPaginate(
-        Builder $builder,
-        bool $useSimplePaginate = false,
-        ?array $data = null
-    ): Paginator|LengthAwarePaginator {
-        $data ??= Request::only('per_page');
-
-        $cacheKey = CacheManager::getPrefix() . 'paginate_' . md5(json_encode($data, JSON_THROW_ON_ERROR));
-
+    public function scopeCustomPaginate(Builder $builder, bool $useSimplePaginate = false, ?array $data = null): Paginator|LengthAwarePaginator
+    {
+        $data ??= request()->only('per_page', 'sort');
         $order = 'ASC';
-        $perPage = (int) ($data['per_page'] ?? 15);
+        $perPage = $data['per_page'] ?? 15;
 
         if ($this->defaultSort && empty($data['sort'])) {
             $data['sort'] = $this->defaultSort;
         }
 
         if (!empty($data['sort'])) {
-            $orderBy = ltrim((string) $data['sort'], '-');
-            $order = str_starts_with((string) $data['sort'], '-') ? 'DESC' : 'ASC';
-
-            if ($this->allowedSorts && !in_array($orderBy, $this->allowedSorts, true)) {
-                throw new InvalidArgumentException("Invalid sort [$orderBy]");
+            $orderBy = $data['sort'];
+            if ($data['sort'][0] === '-') {
+                $orderBy = substr((string) $data['sort'], 1);
+                $order = 'DESC';
             }
-
-            $orderBy = $this->filterMap[$orderBy] ?? $orderBy;
-
+            if (!empty($this->allowedSorts) && !in_array($orderBy, $this->allowedSorts, true)) {
+                throw new InvalidArgumentException("The sort value [$orderBy] is not acceptable");
+            }
+            if (!empty($this->filterMap[$orderBy])) {
+                $orderBy = $this->filterMap[$orderBy];
+            }
             $builder->orderBy($orderBy, $order);
         }
 
-        if (!empty($this->withRelations)) {
-            $builder->with($this->withRelations);
-        }
-
-        $result = $useSimplePaginate
-            ? $builder->simplePaginate($perPage)->appends($data)
-            : $builder->paginate($perPage)->appends($data);
-
-        return CacheManager::remember($cacheKey, CacheManager::getTtl(), function () use ($result) {
-            return $result;
-        });
+        return $useSimplePaginate
+            ? $builder->simplePaginate((int) $perPage)->appends($data)
+            : $builder->paginate((int) $perPage)->appends($data);
     }
 
-    /**
-     * @throws JsonException
-     */
+    public function scopeFiltrable(Builder $builder, array $filters): Builder
+    {
+        return $this->scopeFilterable($builder, $filters);
+    }
+
     public function scopeFilterable(Builder $builder, array $filters): Builder
     {
-        $relations = [];
+        $relationshipFilters = [];
+        $directFilters = [];
+        $relationshipsToLoad = [];
 
         foreach ($filters as $filter) {
-            if (!$filter->isValid($filter->getValue())) {
+            if (!($filter instanceof Filter)) {
+                throw new InvalidArgumentException('Filterable must be an instance of Filter');
+            }
+            if ($filter->shouldIgnore()) {
                 continue;
             }
+            $relationship = $filter->getRelationship();
+            if ($relationship !== null && $relationship !== '' && $relationship !== '0') {
+                $relationshipFilters[] = $filter;
+                if ($filter->shouldWith()) {
+                    $relationshipsToLoad[] = $relationship;
+                }
+            } else {
+                $directFilters[] = $filter;
+            }
+        }
 
-            $attribute = $this->filterMap[$filter->getFilterBy()] ?? $filter->getAttribute();
-            $operator = $filter->getOperator();
+        foreach ($directFilters as $filter) {
             $value = $filter->getValue();
+            $attribute = empty($this->filterMap[$filter->getFilterBy()]) ? $filter->getAttribute() : $this->filterMap[$filter->getFilterBy()];
 
-            if ($filter->getRelationship()) {
-                $relations[] = $filter->getRelationship();
-
-                $builder->whereHas($filter->getRelationship(), function ($query) use ($attribute, $operator, $value): void {
-                    $query->where($attribute, $operator, $value);
-                });
-                continue;
+            if ($filter->getOperator() === 'BETWEEN') {
+                if (is_array($value) && count($value) === 2) {
+                    $builder->whereBetween($attribute, $value);
+                    continue;
+                }
+                throw new InvalidArgumentException('The value for BETWEEN must be an array with exactly two elements.');
             }
 
-            if ($filter->getNestedRelationships()) {
-                $relations[] = implode('.', $filter->getNestedRelationships());
-
-                $nestedRelations = $filter->getNestedRelationships();
-                $firstRelation = array_shift($nestedRelations);
-
-                $builder->whereHas($firstRelation, function ($query) use ($nestedRelations, $attribute, $operator, $value): void {
-                    $this->applyNestedWhereHas($query, $nestedRelations, $attribute, $operator, $value);
-                });
-                continue;
+            if ($filter->getJsonPath() !== null && $filter->getJsonPath() !== '' && $filter->getJsonPath() !== '0') {
+                $attribute = DB::raw($attribute);
             }
 
-            match ($operator) {
-                'BETWEEN' => $builder->whereBetween($attribute, $value),
-                'IN'      => $builder->whereIn($attribute, $value),
-                default   => $builder->where($attribute, $operator, $value),
-            };
+            if ($filter->getOperator() === 'IN') {
+                $builder->whereIn($attribute, $value);
+            } elseif ($value instanceof Carbon && $filter->isDate()) {
+                $builder->whereBetween($attribute, [$value->startOfDay(), $value->endOfDay()]);
+            } else {
+                $builder->where($attribute, $filter->getOperator(), $value);
+            }
         }
 
-        if (!empty($relations)) {
-            $this->withRelations = array_unique(array_merge($this->withRelations ?? [], $relations));
-            $builder->with($this->withRelations);
+        $groupedByRelationship = [];
+        foreach ($relationshipFilters as $filter) {
+            $relationship = $filter->getRelationship();
+            if (!isset($groupedByRelationship[$relationship])) {
+                $groupedByRelationship[$relationship] = [];
+            }
+            $groupedByRelationship[$relationship][] = $filter;
         }
 
-        $cacheKey = CacheManager::getPrefix() . 'filters_' . md5(json_encode(Request::query('filter', []), JSON_THROW_ON_ERROR));
+        foreach ($groupedByRelationship as $relationship => $relationshipFilters) {
+            $builder->whereHas($relationship, function ($query) use ($relationshipFilters): void {
+                $hasConditionalLogic = false;
+                foreach ($relationshipFilters as $filter) {
+                    if ($filter->getConditionalLogic() !== null && $filter->getConditionalLogic() !== '' && $filter->getConditionalLogic() !== '0') {
+                        $hasConditionalLogic = true;
+                        break;
+                    }
+                }
 
-        CacheManager::remember($cacheKey, CacheManager::getTtl(), function () {
-            return true;
-        });
+                if ($hasConditionalLogic) {
+                    $conditions = [];
+                    foreach ($relationshipFilters as $filter) {
+                        if ($filter->getConditionalLogic() !== null && $filter->getConditionalLogic() !== '' && $filter->getConditionalLogic() !== '0') {
+                            $conditions = array_merge($conditions, $filter->getConditionalConditions());
+                        } else {
+                            $value = $filter->getValue();
+                            $attribute = $filter->getAttribute();
+                            $conditions[] = [$attribute, $filter->getOperator(), $value];
+                        }
+                    }
+
+                    $logic = $relationshipFilters[0]->getConditionalLogic();
+                    if ($logic === 'any') {
+                        $query->whereAny($conditions);
+                    } elseif ($logic === 'all') {
+                        $query->whereAll($conditions);
+                    } elseif ($logic === 'none') {
+                        $query->whereNone($conditions);
+                    }
+                } else {
+                    foreach ($relationshipFilters as $filter) {
+                        $value = $filter->getValue();
+                        $attribute = empty($this->filterMap[$filter->getFilterBy()]) ? $filter->getAttribute() : $this->filterMap[$filter->getFilterBy()];
+
+                        if ($filter->getOperator() === 'BETWEEN') {
+                            if (is_array($value) && count($value) === 2) {
+                                $query->whereBetween($attribute, $value);
+                                continue;
+                            }
+                            throw new InvalidArgumentException('The value for BETWEEN must be an array with exactly two elements.');
+                        }
+
+                        if ($filter->getOperator() === 'IN') {
+                            $query->whereIn($attribute, $value);
+                        } elseif ($value instanceof Carbon && $filter->isDate()) {
+                            $query->whereBetween($attribute, [$value->startOfDay(), $value->endOfDay()]);
+                        } else {
+                            $query->where($attribute, $filter->getOperator(), $value);
+                        }
+                    }
+                }
+            });
+        }
+
+        if ($relationshipsToLoad !== []) {
+            $builder->with(array_unique($relationshipsToLoad));
+        }
 
         return $builder;
     }
 
-    private function applyNestedWhereHas($query, array $relationships, string $attribute, string $operator, $value): void
+    public function scopeAllowedSorts(Builder $builder, array $allowedSorts, string $defaultSort = ''): Builder
     {
-        if (empty($relationships)) {
-            $query->where($attribute, $operator, $value);
-            return;
-        }
-
-        $relation = array_shift($relationships);
-        $query->whereHas($relation, function ($q) use ($relationships, $attribute, $operator, $value) {
-            $this->applyNestedWhereHas($q, $relationships, $attribute, $operator, $value);
-        });
+        $this->defaultSort = $defaultSort;
+        $this->allowedSorts = $allowedSorts;
+        return $builder;
     }
 
-    public function setWithRelations(array $relations): self
+    public function scopeFilterMap(Builder $builder, array $filterMap): Builder
     {
-        $this->withRelations = $relations;
-        return $this;
-    }
-
-    public function addWithRelation(string $relation): self
-    {
-        $this->withRelations[] = $relation;
-        return $this;
+        $this->filterMap = $filterMap;
+        return $builder;
     }
 }
