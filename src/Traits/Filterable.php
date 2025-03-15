@@ -17,17 +17,10 @@ trait Filterable
     protected array $allowedSorts = [];
     protected array $filterMap = [];
 
-    /**
-     * @param Builder $builder
-     * @param bool $useSimplePaginate
-     * @param array<string, mixed>|null $data
-     * @return Paginator|LengthAwarePaginator
-     */
     public function scopeCustomPaginate(Builder $builder, bool $useSimplePaginate = false, ?array $data = null): Paginator|LengthAwarePaginator
     {
-        $data = $data ?? request()->only('per_page', 'sort');
-
-        $order   = 'ASC';
+        $data ??= request()->only('per_page', 'sort');
+        $order = 'ASC';
         $perPage = $data['per_page'] ?? 15;
 
         if ($this->defaultSort && empty($data['sort'])) {
@@ -36,20 +29,16 @@ trait Filterable
 
         if (!empty($data['sort'])) {
             $orderBy = $data['sort'];
-
             if ($data['sort'][0] === '-') {
-                $orderBy = substr($data['sort'], 1);
-                $order   = 'DESC';
+                $orderBy = substr((string) $data['sort'], 1);
+                $order = 'DESC';
             }
-
             if (!empty($this->allowedSorts) && !in_array($orderBy, $this->allowedSorts, true)) {
                 throw new InvalidArgumentException("The sort value [$orderBy] is not acceptable");
             }
-
             if (!empty($this->filterMap[$orderBy])) {
                 $orderBy = $this->filterMap[$orderBy];
             }
-
             $builder->orderBy($orderBy, $order);
         }
 
@@ -62,82 +51,94 @@ trait Filterable
     {
         return $this->scopeFilterable($builder, $filters);
     }
+
     public function scopeFilterable(Builder $builder, array $filters): Builder
     {
+        $relationshipFilters = [];
+        $directFilters = [];
+
         foreach ($filters as $filter) {
             if (!($filter instanceof Filter)) {
                 throw new InvalidArgumentException('Filterable must be an instance of Filter');
             }
-
-            $value = $filter->getValue();
-
-            if (!$filter->isValid($value)) {
+            if ($filter->shouldIgnore()) {
                 continue;
             }
+            $filter->getRelationship() !== null && $filter->getRelationship() !== '' && $filter->getRelationship() !== '0' ? $relationshipFilters[] = $filter : $directFilters[] = $filter;
+        }
 
-            if (!empty($this->filterMap[$filter->getFilterBy()])) {
-                $attribute = $this->filterMap[$filter->getFilterBy()];
-            } else {
-                $attribute = $filter->getAttribute();
-            }
+        foreach ($directFilters as $filter) {
+            $value = $filter->getValue();
+            $attribute = empty($this->filterMap[$filter->getFilterBy()]) ? $filter->getAttribute() : $this->filterMap[$filter->getFilterBy()];
 
             if ($filter->getOperator() === 'BETWEEN') {
                 if (is_array($value) && count($value) === 2) {
                     $builder->whereBetween($attribute, $value);
                     continue;
                 }
-
                 throw new InvalidArgumentException('The value for BETWEEN must be an array with exactly two elements.');
             }
 
-
-            if ($filter->getJsonPath()) {
+            if ($filter->getJsonPath() !== null && $filter->getJsonPath() !== '' && $filter->getJsonPath() !== '0') {
                 $attribute = DB::raw($attribute);
             }
 
-            if ($filter->getRelationship()) {
-                $builder->whereHas($filter->getRelationship(), function ($query) use ($filter, $attribute, $value) {
+            if ($filter->getOperator() === 'IN') {
+                $builder->whereIn($attribute, $value);
+            } elseif ($value instanceof Carbon && $filter->isDate()) {
+                $builder->whereBetween($attribute, [$value->startOfDay(), $value->endOfDay()]);
+            } else {
+                $builder->where($attribute, $filter->getOperator(), $value);
+            }
+        }
+
+        $groupedByRelationship = [];
+        foreach ($relationshipFilters as $filter) {
+            $relationship = $filter->getRelationship();
+            if (!isset($groupedByRelationship[$relationship])) {
+                $groupedByRelationship[$relationship] = [];
+            }
+            $groupedByRelationship[$relationship][] = $filter;
+        }
+
+        foreach ($groupedByRelationship as $relationship => $filters) {
+            $builder->whereHas($relationship, function ($query) use ($filters): void {
+                foreach ($filters as $filter) {
+                    $value = $filter->getValue();
+                    $attribute = empty($this->filterMap[$filter->getFilterBy()]) ? $filter->getAttribute() : $this->filterMap[$filter->getFilterBy()];
+
+                    if ($filter->getOperator() === 'BETWEEN') {
+                        if (is_array($value) && count($value) === 2) {
+                            $query->whereBetween($attribute, $value);
+                            continue;
+                        }
+                        throw new InvalidArgumentException('The value for BETWEEN must be an array with exactly two elements.');
+                    }
+
                     if ($filter->getOperator() === 'IN') {
                         $query->whereIn($attribute, $value);
                     } elseif ($value instanceof Carbon && $filter->isDate()) {
-                        $startDate = $value->clone()->startOfDay();
-                        $endDate = $value->clone()->endOfDay();
-
-                        $query->whereBetween($attribute, [$startDate, $endDate]);
+                        $query->whereBetween($attribute, [$value->startOfDay(), $value->endOfDay()]);
                     } else {
                         $query->where($attribute, $filter->getOperator(), $value);
                     }
-                });
-            } else {
-                if ($filter->getOperator() === 'IN') {
-                    $builder->whereIn($attribute, $value);
-                } elseif ($value instanceof Carbon && $filter->isDate()) {
-                    $startDate = $value->clone()->startOfDay();
-                    $endDate = $value->clone()->endOfDay();
-
-                    $builder->whereBetween($attribute, [$startDate, $endDate]);
-                } else {
-                    $builder->where($attribute, $filter->getOperator(), $value);
                 }
-            }
+            });
         }
 
         return $builder;
     }
 
-
     public function scopeAllowedSorts(Builder $builder, array $allowedSorts, string $defaultSort = ''): Builder
     {
-        $this->defaultSort  = $defaultSort;
+        $this->defaultSort = $defaultSort;
         $this->allowedSorts = $allowedSorts;
-
         return $builder;
     }
 
     public function scopeFilterMap(Builder $builder, array $filterMap): Builder
     {
         $this->filterMap = $filterMap;
-
         return $builder;
     }
 }

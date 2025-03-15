@@ -15,21 +15,18 @@ class FilterableTest extends Model
     use Filterable;
 }
 
-beforeEach(function () {
+beforeEach(function (): void {
     global $builder, $model;
 
-    // Mock do Builder
     $builder = Mockery::mock(Builder::class);
 
-    // Mock do Request facade
     Request::shouldReceive('query')
-        ->andReturn(['name' => 'John']);  // Mockando o valor esperado
+        ->andReturn(['name' => 'John']);
 
-    // Instância do modelo
     $model = new FilterableTest();
 });
 
-it('applies exact filter using scopeFilterable', function () {
+it('applies exact filter using scopeFilterable', function (): void {
     global $builder, $model;
 
     $builder->shouldReceive('where')
@@ -42,7 +39,7 @@ it('applies exact filter using scopeFilterable', function () {
 });
 
 
-it('applies pagination using scopeCustomPaginate', function () {
+it('applies pagination using scopeCustomPaginate', function (): void {
     global $builder, $model;
 
     $builder->shouldReceive('orderBy')

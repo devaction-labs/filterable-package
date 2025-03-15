@@ -7,7 +7,7 @@ use InvalidArgumentException;
 use Illuminate\Support\Facades\Request;
 use Mockery;
 
-beforeEach(function () {
+beforeEach(function (): void {
     global $filters;
     $filters = [];
 
@@ -17,7 +17,7 @@ beforeEach(function () {
         });
 });
 
-it('can create an exact filter', function () {
+it('can create an exact filter', function (): void {
     global $filters;
     $filters = ['name' => 'John'];
 
@@ -27,7 +27,7 @@ it('can create an exact filter', function () {
         ->and($filter->getValue())->toBe('John');
 });
 
-it('can create a like filter', function () {
+it('can create a like filter', function (): void {
     global $filters;
     $filters = ['name' => 'Doe'];
 
@@ -37,18 +37,18 @@ it('can create a like filter', function () {
         ->and($filter->getValue())->toBe('%Doe%');
 });
 
-it('can set and get a filter value', function () {
+it('can set and get a filter value', function (): void {
     $filter = Filter::exact('name');
     $filter->setValue('John');
     expect($filter->getValue())->toBe('John');
 });
 
-it('throws exception for invalid array value in filter', function () {
+it('throws exception for invalid array value in filter', function (): void {
     $filter = Filter::exact('tags');
     $filter->setValue(['tag1', 123]);
 })->throws(InvalidArgumentException::class);
 
-it('can create a json filter com exact match', function () {
+it('can create a json filter com exact match', function (): void {
     global $filters;
     $filters = ['data' => json_encode(['user' => ['name' => 'John']], JSON_THROW_ON_ERROR)];
 
@@ -58,7 +58,7 @@ it('can create a json filter com exact match', function () {
         ->and($filter->getValue())->toBe('John');
 });
 
-it('can create a json filter com like match', function () {
+it('can create a json filter com like match', function (): void {
     global $filters;
     $filters = ['data' => json_encode(['user' => ['name' => 'Doe']], JSON_THROW_ON_ERROR)];
 
@@ -68,7 +68,7 @@ it('can create a json filter com like match', function () {
         ->and($filter->getValue())->toBe('%Doe%');
 });
 
-it('can create a json filter com greater than match', function () {
+it('can create a json filter com greater than match', function (): void {
     global $filters;
     $filters = ['data' => json_encode(['user' => ['age' => 30]], JSON_THROW_ON_ERROR)];
 
@@ -78,7 +78,7 @@ it('can create a json filter com greater than match', function () {
         ->and($filter->getValue())->toBe(30);
 });
 
-it('can create a json filter com in match', function () {
+it('can create a json filter com in match', function (): void {
     global $filters;
     $filters = ['data' => json_encode(['user' => ['roles' => 'admin,user']], JSON_THROW_ON_ERROR)];
 
@@ -89,7 +89,7 @@ it('can create a json filter com in match', function () {
 });
 
 
-it('can create a between filter', function () {
+it('can create a between filter', function (): void {
     global $filters;
     $filters = ['created_at' => ['2023-01-01', '2023-12-31']];
 
@@ -99,7 +99,7 @@ it('can create a between filter', function () {
         ->and($filter->getValue())->toBe(['2023-01-01', '2023-12-31']);
 });
 
-it('throws exception for invalid between filter value', function () {
+it('throws exception for invalid between filter value', function (): void {
     $filter = Filter::between('created_at');
     $filter->setValue(['2023-01-01']);
 })->throws(InvalidArgumentException::class);

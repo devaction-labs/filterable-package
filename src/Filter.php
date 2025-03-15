@@ -12,86 +12,83 @@ class Filter
 {
     protected string $attribute;
     protected string $filterBy;
-
-    /**
-     * @var string|array<int, string>|Carbon|int|null
-     */
     protected string|array|Carbon|int|null $value = null;
-
-    protected string $operator;
     protected string $likePattern = '%{{value}}%';
     protected bool $endOfDay = false;
     protected bool $startOfDay = false;
     protected bool $isDate = false;
     protected ?string $jsonPath = null;
-
     protected ?string $relationship = null;
     protected string|int|null $default = null;
     protected ?string $databaseDriver = null;
+    protected static ?string $cachedDatabaseDriver = null;
 
-
-    public function __construct(string $attribute, string $operator, ?string $filterBy = null)
+    public function __construct(string $attribute, protected string $operator, ?string $filterBy = null)
     {
         $this->filterBy = $filterBy ?? $attribute;
         $this->attribute = $attribute;
-        $this->operator = $operator;
-
         $this->setValueFromRequest();
     }
 
     public function setValueFromRequest(): void
     {
         $filters = Request::query('filter', []);
+        if (!isset($filters[$this->filterBy]) || !$this->isValid($filters[$this->filterBy])) {
+            return;
+        }
 
-        if (isset($filters[$this->filterBy]) && $this->isValid($filters[$this->filterBy])) {
-            $value = $filters[$this->filterBy];
+        $value = $filters[$this->filterBy];
 
-            if ($this->operator === 'BETWEEN' && is_string($value)) {
-                $value = explode(',', $value); // Converte a string em array
+        if ($this->operator === 'BETWEEN' && is_string($value) && str_contains($value, ',')) {
+            $value = explode(',', $value);
+        }
+
+        if ($this->jsonPath !== null && $this->jsonPath !== '' && $this->jsonPath !== '0') {
+            $value = $this->extractJsonValue($value);
+        }
+
+        if ($this->operator === 'LIKE') {
+            $value = str_replace('{{value}}', $value, $this->likePattern);
+        }
+
+        if ($this->operator === 'IN' && is_string($value) && str_contains($value, ',')) {
+            $value = explode(',', $value);
+        }
+
+        $this->value = $value;
+    }
+
+    protected function extractJsonValue(mixed $value): mixed
+    {
+        if (!is_string($value) || ($this->jsonPath === null || $this->jsonPath === '' || $this->jsonPath === '0')) {
+            return $value;
+        }
+
+        try {
+            $decoded = json_decode($value, true, 512, JSON_THROW_ON_ERROR);
+            if (!is_array($decoded)) {
+                return $value;
             }
 
-            if ($this->jsonPath) {
-                $decoded = null;
-                if (is_string($value)) {
-                    try {
-                        $decoded = json_decode($value, true, 512, JSON_THROW_ON_ERROR);
-                    } catch (JsonException $e) {
-                        $decoded = null;
-                    }
+            $keys = explode('.', $this->jsonPath);
+            foreach ($keys as $key) {
+                if (isset($decoded[$key])) {
+                    $decoded = $decoded[$key];
+                } else {
+                    return null;
                 }
-
-                if (is_array($decoded)) {
-                    $keys = explode('.', $this->jsonPath);
-                    foreach ($keys as $key) {
-                        if (isset($decoded[$key])) {
-                            $decoded = $decoded[$key];
-                        } else {
-                            $decoded = null;
-                            break;
-                        }
-                    }
-                    $value = $decoded;
-                }
             }
-
-            if ($this->operator === 'LIKE') {
-                $value = str_replace('{{value}}', $value, $this->likePattern);
-            }
-
-            if ($this->operator === 'IN' && is_string($value)) {
-                $value = explode(',', $value);
-            }
-
-            $this->value = $value;
+            return $decoded;
+        } catch (JsonException) {
+            return null;
         }
     }
 
     public function isValid(mixed $value): bool
     {
-        if (is_array($value) && empty($value)) {
+        if ($value === []) {
             return false;
         }
-
         return $value !== '' && $value !== null;
     }
 
@@ -143,13 +140,10 @@ class Filter
     public static function relationship(string $relationship, string $attribute, string $operator = '=', ?string $filterBy = null): self
     {
         $filter = new self("{$relationship}.{$attribute}", $operator, $filterBy);
-
         $filter->relationship = $relationship;
         $filter->attribute = $attribute;
         return $filter;
     }
-
-
 
     public static function json(string $attribute, string $path, string $operator = '=', ?string $filterBy = null): self
     {
@@ -189,43 +183,35 @@ class Filter
         return $this;
     }
 
-    /**
-     * @return string|array<int, string>|Carbon|int|null
-     */
     public function getValue(): string|array|Carbon|int|null
     {
         if (!$this->isValid($this->value) && $this->isValid($this->default)) {
             $this->value = $this->default;
         }
 
-        if ($this->endOfDay && $this->value) {
-            $this->value = $this->convertToCarbon($this->value);
-            $this->value->endOfDay();
+        if (!$this->isValid($this->value)) {
+            return $this->value;
         }
 
-        if ($this->startOfDay && $this->value) {
+        if ($this->isDate || $this->endOfDay || $this->startOfDay) {
             $this->value = $this->convertToCarbon($this->value);
-            $this->value->startOfDay();
-        }
-
-        if ($this->isDate && $this->value) {
-            $this->value = $this->convertToCarbon($this->value);
+            if ($this->endOfDay) {
+                $this->value->endOfDay();
+            }
+            if ($this->startOfDay) {
+                $this->value->startOfDay();
+            }
         }
 
         return $this->value;
     }
 
-    /**
-     * @param string|int|array<int, string>|Carbon|null $value
-     * @return self
-     */
     public function setValue(string|int|array|Carbon|null $value): self
     {
         if ($this->operator === 'BETWEEN') {
             if (!is_array($value) || count($value) !== 2) {
                 throw new InvalidArgumentException('The value for BETWEEN must be an array with exactly two elements.');
             }
-
             foreach ($value as $item) {
                 if (!is_string($item) && !is_int($item)) {
                     throw new InvalidArgumentException('The elements in the BETWEEN value array must be of type string or int.');
@@ -245,20 +231,14 @@ class Filter
         return $this;
     }
 
-    /**
-     * @param string|int|array<int, string>|Carbon|null $value
-     * @return Carbon
-     */
     private function convertToCarbon(string|int|array|Carbon|null $value): Carbon
     {
         if ($value instanceof Carbon) {
             return $value;
         }
-
         if (is_array($value)) {
             throw new InvalidArgumentException('Array values cannot be converted to Carbon instances');
         }
-
         return new Carbon($value);
     }
 
@@ -276,26 +256,23 @@ class Filter
 
     public function getAttribute(): string
     {
-        if ($this->jsonPath) {
+        if ($this->jsonPath !== null && $this->jsonPath !== '' && $this->jsonPath !== '0') {
             if ($this->isUsingMySQL()) {
                 return "{$this->attribute}->>'$.{$this->jsonPath}'";
             }
-
             if ($this->isUsingSQLite()) {
                 return "json_extract({$this->attribute}, '$.{$this->jsonPath}')";
             }
-
             if ($this->isUsingPostgreSQL()) {
                 return "{$this->attribute}->>'{$this->jsonPath}'";
             }
         }
-
         return $this->attribute;
     }
 
     public function shouldIgnore(): bool
     {
-        return empty($this->value);
+        return !$this->isValid($this->value) && !$this->isValid($this->default);
     }
 
     public function getOperator(): string
@@ -323,12 +300,6 @@ class Filter
         return $this->getDatabaseDriver() === 'sqlite';
     }
 
-    /**
-     * Define o driver do banco de dados a ser utilizado.
-     *
-     * @param string $driver
-     * @return self
-     */
     public function setDatabaseDriver(string $driver): self
     {
         $this->databaseDriver = $driver;
@@ -337,15 +308,10 @@ class Filter
 
     protected function getDatabaseDriver(): string|bool
     {
-        if ($this->databaseDriver !== null) {
-            return $this->databaseDriver;
+        if (self::$cachedDatabaseDriver === null) {
+            self::$cachedDatabaseDriver = $this->databaseDriver ?? (function_exists('config') ? config('database.default') : getenv('DATABASE_DRIVER'));
         }
-
-        if (function_exists('config')) {
-            return config('database.default');
-        }
-
-        return getenv('DATABASE_DRIVER');
+        return self::$cachedDatabaseDriver;
     }
 
     public function getJsonPath(): ?string
@@ -362,5 +328,4 @@ class Filter
     {
         return $this->relationship;
     }
-
 }
