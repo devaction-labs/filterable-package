@@ -1,5 +1,10 @@
 <?php
 
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Request;
+use Tests\TestCase;
+
 /*
 |--------------------------------------------------------------------------
 | Test Case
@@ -11,7 +16,7 @@
 |
 */
 
- uses(Tests\TestCase::class)->in('Feature', 'Unit');
+uses(TestCase::class)->in('Feature', 'Unit');
 
 /*
 |--------------------------------------------------------------------------
@@ -41,3 +46,13 @@ function something(): void
 {
     // ..
 }
+
+beforeEach(function (): void {
+    Cache::clearResolvedInstances();
+    Config::clearResolvedInstances();
+    Request::clearResolvedInstances();
+});
+
+afterEach(function (): void {
+    Mockery::close();
+});
