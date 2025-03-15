@@ -112,24 +112,54 @@ trait Filterable
 
         foreach ($groupedByRelationship as $relationship => $relationshipFilters) {
             $builder->whereHas($relationship, function ($query) use ($relationshipFilters): void {
+                $hasConditionalLogic = false;
                 foreach ($relationshipFilters as $filter) {
-                    $value = $filter->getValue();
-                    $attribute = empty($this->filterMap[$filter->getFilterBy()]) ? $filter->getAttribute() : $this->filterMap[$filter->getFilterBy()];
+                    if ($filter->getConditionalLogic() !== null && $filter->getConditionalLogic() !== '' && $filter->getConditionalLogic() !== '0') {
+                        $hasConditionalLogic = true;
+                        break;
+                    }
+                }
 
-                    if ($filter->getOperator() === 'BETWEEN') {
-                        if (is_array($value) && count($value) === 2) {
-                            $query->whereBetween($attribute, $value);
-                            continue;
+                if ($hasConditionalLogic) {
+                    $conditions = [];
+                    foreach ($relationshipFilters as $filter) {
+                        if ($filter->getConditionalLogic() !== null && $filter->getConditionalLogic() !== '' && $filter->getConditionalLogic() !== '0') {
+                            $conditions = array_merge($conditions, $filter->getConditionalConditions());
+                        } else {
+                            $value = $filter->getValue();
+                            $attribute = $filter->getAttribute();
+                            $conditions[] = [$attribute, $filter->getOperator(), $value];
                         }
-                        throw new InvalidArgumentException('The value for BETWEEN must be an array with exactly two elements.');
                     }
 
-                    if ($filter->getOperator() === 'IN') {
-                        $query->whereIn($attribute, $value);
-                    } elseif ($value instanceof Carbon && $filter->isDate()) {
-                        $query->whereBetween($attribute, [$value->startOfDay(), $value->endOfDay()]);
-                    } else {
-                        $query->where($attribute, $filter->getOperator(), $value);
+                    $logic = $relationshipFilters[0]->getConditionalLogic();
+                    if ($logic === 'any') {
+                        $query->whereAny($conditions);
+                    } elseif ($logic === 'all') {
+                        $query->whereAll($conditions);
+                    } elseif ($logic === 'none') {
+                        $query->whereNone($conditions);
+                    }
+                } else {
+                    foreach ($relationshipFilters as $filter) {
+                        $value = $filter->getValue();
+                        $attribute = empty($this->filterMap[$filter->getFilterBy()]) ? $filter->getAttribute() : $this->filterMap[$filter->getFilterBy()];
+
+                        if ($filter->getOperator() === 'BETWEEN') {
+                            if (is_array($value) && count($value) === 2) {
+                                $query->whereBetween($attribute, $value);
+                                continue;
+                            }
+                            throw new InvalidArgumentException('The value for BETWEEN must be an array with exactly two elements.');
+                        }
+
+                        if ($filter->getOperator() === 'IN') {
+                            $query->whereIn($attribute, $value);
+                        } elseif ($value instanceof Carbon && $filter->isDate()) {
+                            $query->whereBetween($attribute, [$value->startOfDay(), $value->endOfDay()]);
+                        } else {
+                            $query->where($attribute, $filter->getOperator(), $value);
+                        }
                     }
                 }
             });

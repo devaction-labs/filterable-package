@@ -23,6 +23,8 @@ class Filter
     protected ?string $databaseDriver = null;
     protected static ?string $cachedDatabaseDriver = null;
     protected bool $withRelationship = false;
+    protected ?string $conditionalLogic = null;
+    protected array $conditionalConditions = [];
 
     public function __construct(string $attribute, protected string $operator, ?string $filterBy = null)
     {
@@ -267,6 +269,46 @@ class Filter
     public function shouldWith(): bool
     {
         return $this->withRelationship;
+    }
+
+    public function whereAny(array $conditions): self
+    {
+        if ($this->relationship === null || $this->relationship === '' || $this->relationship === '0') {
+            throw new InvalidArgumentException('The whereAny() method can only be used with relationship filters.');
+        }
+        $this->conditionalLogic = 'any';
+        $this->conditionalConditions = $conditions;
+        return $this;
+    }
+
+    public function whereAll(array $conditions): self
+    {
+        if ($this->relationship === null || $this->relationship === '' || $this->relationship === '0') {
+            throw new InvalidArgumentException('The whereAll() method can only be used with relationship filters.');
+        }
+        $this->conditionalLogic = 'all';
+        $this->conditionalConditions = $conditions;
+        return $this;
+    }
+
+    public function whereNone(array $conditions): self
+    {
+        if ($this->relationship === null || $this->relationship === '' || $this->relationship === '0') {
+            throw new InvalidArgumentException('The whereNone() method can only be used with relationship filters.');
+        }
+        $this->conditionalLogic = 'none';
+        $this->conditionalConditions = $conditions;
+        return $this;
+    }
+
+    public function getConditionalLogic(): ?string
+    {
+        return $this->conditionalLogic;
+    }
+
+    public function getConditionalConditions(): array
+    {
+        return $this->conditionalConditions;
     }
 
     public function getAttribute(): string
