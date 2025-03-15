@@ -46,10 +46,6 @@ class Filter
             $value = explode(',', $value);
         }
 
-        if ($this->jsonPath !== null && $this->jsonPath !== '' && $this->jsonPath !== '0') {
-            $value = $this->extractJsonValue($value);
-        }
-
         if ($this->operator === 'LIKE') {
             $value = str_replace('{{value}}', $value, $this->likePattern);
         }
