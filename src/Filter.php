@@ -22,6 +22,7 @@ class Filter
     protected string|int|null $default = null;
     protected ?string $databaseDriver = null;
     protected static ?string $cachedDatabaseDriver = null;
+    protected bool $withRelationship = false;
 
     public function __construct(string $attribute, protected string $operator, ?string $filterBy = null)
     {
@@ -252,6 +253,20 @@ class Filter
     {
         $this->startOfDay = true;
         return $this;
+    }
+
+    public function with(): self
+    {
+        if ($this->relationship === null || $this->relationship === '' || $this->relationship === '0') {
+            throw new InvalidArgumentException('The with() method can only be used with relationship filters.');
+        }
+        $this->withRelationship = true;
+        return $this;
+    }
+
+    public function shouldWith(): bool
+    {
+        return $this->withRelationship;
     }
 
     public function getAttribute(): string

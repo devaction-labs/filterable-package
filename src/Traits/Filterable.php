@@ -56,6 +56,7 @@ trait Filterable
     {
         $relationshipFilters = [];
         $directFilters = [];
+        $relationshipsToLoad = [];
 
         foreach ($filters as $filter) {
             if (!($filter instanceof Filter)) {
@@ -64,7 +65,15 @@ trait Filterable
             if ($filter->shouldIgnore()) {
                 continue;
             }
-            $filter->getRelationship() !== null && $filter->getRelationship() !== '' && $filter->getRelationship() !== '0' ? $relationshipFilters[] = $filter : $directFilters[] = $filter;
+            $relationship = $filter->getRelationship();
+            if ($relationship !== null && $relationship !== '' && $relationship !== '0') {
+                $relationshipFilters[] = $filter;
+                if ($filter->shouldWith()) {
+                    $relationshipsToLoad[] = $relationship;
+                }
+            } else {
+                $directFilters[] = $filter;
+            }
         }
 
         foreach ($directFilters as $filter) {
@@ -101,9 +110,9 @@ trait Filterable
             $groupedByRelationship[$relationship][] = $filter;
         }
 
-        foreach ($groupedByRelationship as $relationship => $filters) {
-            $builder->whereHas($relationship, function ($query) use ($filters): void {
-                foreach ($filters as $filter) {
+        foreach ($groupedByRelationship as $relationship => $relationshipFilters) {
+            $builder->whereHas($relationship, function ($query) use ($relationshipFilters): void {
+                foreach ($relationshipFilters as $filter) {
                     $value = $filter->getValue();
                     $attribute = empty($this->filterMap[$filter->getFilterBy()]) ? $filter->getAttribute() : $this->filterMap[$filter->getFilterBy()];
 
@@ -124,6 +133,10 @@ trait Filterable
                     }
                 }
             });
+        }
+
+        if ($relationshipsToLoad !== []) {
+            $builder->with(array_unique($relationshipsToLoad));
         }
 
         return $builder;
