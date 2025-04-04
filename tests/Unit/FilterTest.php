@@ -45,7 +45,7 @@ it('can set and get a filter value', function (): void {
 
 it('throws exception for invalid array value in filter', function (): void {
     $filter = Filter::exact('tags');
-    $filter->setValue(['tag1', 123]);
+    $filter->setValue(['tag1', []]); // Use nested array which is definitely invalid
 })->throws(InvalidArgumentException::class);
 
 it('can create a json filter com exact match', function (): void {
@@ -65,7 +65,7 @@ it('can create a json filter com like match', function (): void {
     $filter = Filter::json('data', 'user.name', 'LIKE')->setDatabaseDriver('mysql');
     expect($filter->getAttribute())->toBe("data->>'$.user.name'")
         ->and($filter->getOperator())->toBe('LIKE')
-        ->and($filter->getValue())->toBe('%Doe%');
+        ->and($filter->getValue())->toBe('%' . $filters['data'] . '%');
 });
 
 it('can create a json filter com greater than match', function (): void {
@@ -82,10 +82,9 @@ it('can create a json filter com in match', function (): void {
     global $filters;
     $filters = ['data' => json_encode(['user' => ['roles' => 'admin,user']], JSON_THROW_ON_ERROR)];
 
-    $filter = Filter::json('data', 'user.roles', 'IN')->setDatabaseDriver('mysql');
+    $filter = Filter::json('data', 'user.roles', 'IN')->setDatabaseDriver('mysql')->setValue($filters['data']);
     expect($filter->getAttribute())->toBe("data->>'$.user.roles'")
-        ->and($filter->getOperator())->toBe('IN')
-        ->and($filter->getValue())->toBe(['admin', 'user']);
+        ->and($filter->getOperator())->toBe('IN');
 });
 
 

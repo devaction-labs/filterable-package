@@ -32,5 +32,10 @@ afterEach(fn () => Mockery::close());
 it('applies exact filter using scopeFilterable', function (): void {
     global $builder, $model;
     $builder->shouldReceive('where')->once()->with('name', '=', 'John')->andReturnSelf();
+    
+    // Allow with() and whereHas() calls from our optimization
+    $builder->shouldReceive('with')->zeroOrMoreTimes()->andReturnSelf();
+    $builder->shouldReceive('whereHas')->zeroOrMoreTimes()->andReturnSelf();
+    
     $model->scopeFilterable($builder, [Filter::exact('name')->setValue('John')]);
 });
