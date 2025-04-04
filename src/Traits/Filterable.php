@@ -7,6 +7,7 @@ use DevactionLabs\FilterablePackage\Filter;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Contracts\Pagination\Paginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\Expression;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use JsonException;
@@ -58,6 +59,9 @@ trait Filterable
         return $this->scopeFilterable($builder, $filters);
     }
 
+    /**
+     * @throws JsonException
+     */
     public function scopeFilterable(Builder $builder, array $filters): Builder
     {
         [$relationshipFilters, $directFilters, $relationshipsToLoad] = $this->categorizeFilters($filters);
@@ -394,7 +398,7 @@ trait Filterable
     /**
      * Apply a filter to a builder
      */
-    private function applyFilterToBuilder(Builder $builder, Filter $filter, string $attribute, mixed $value): void
+    private function applyFilterToBuilder(Builder $builder, Filter $filter, string|Expression $attribute, mixed $value): void
     {
         if ($filter->getOperator() === 'IN') {
             $builder->whereIn($attribute, $value);
