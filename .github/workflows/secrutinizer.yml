@@ -1,0 +1,48 @@
+checks:
+  php: true
+
+coding_style:
+  php:
+    spaces:
+      around_operators:
+        concatenation: true
+      ternary_operator:
+        before_condition: true
+        after_condition: true
+        before_alternative: true
+        after_alternative: true
+
+filter:
+  paths:
+    - src/*
+  excluded_paths:
+    - tests/*
+    - vendor/*
+
+tools:
+  php_analyzer: true
+  php_mess_detector: true
+  php_code_sniffer:
+    config:
+      standard: PSR12
+  sensiolabs_security_checker: true
+  php_code_coverage: true
+  php_sim: true
+  php_pdepend: true
+  php_loc: true
+  external_code_coverage:
+    timeout: 600
+    runs: 3
+
+build:
+  nodes:
+    analysis:
+      environment:
+        php: 8.2
+      project_setup:
+        override:
+          - composer install --no-interaction --prefer-dist
+      tests:
+        override:
+          - php-scrutinizer-run
+          - phpcs-run
