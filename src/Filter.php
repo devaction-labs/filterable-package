@@ -2,9 +2,9 @@
 
 namespace DevactionLabs\FilterablePackage;
 
-use Exception;
 use AllowDynamicProperties;
 use Carbon\Carbon;
+use Exception;
 use Illuminate\Support\Facades\Request;
 use InvalidArgumentException;
 use JsonException;

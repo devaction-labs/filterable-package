@@ -2,11 +2,11 @@
 
 namespace Tests\Unit;
 
-use ReflectionClass;
 use Carbon\Carbon;
 use DevactionLabs\FilterablePackage\Filter;
 use Illuminate\Support\Facades\Request;
 use InvalidArgumentException;
+use ReflectionClass;
 
 beforeEach(function (): void {
     global $filters;
