@@ -2,7 +2,6 @@
 
 namespace Tests\Unit;
 
-use DevactionLabs\FilterablePackage\Filter;
 use DevactionLabs\FilterablePackage\Traits\Filterable;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -23,13 +22,12 @@ beforeEach(function (): void {
     Request::shouldReceive('query')
         ->andReturn(['name' => 'John']);
 
-    $model = new FilterableTest();
+    $model = new FilterableTest;
 });
 
 it('applies exact filter using scopeFilterable', function (): void {
     $this->markTestSkipped('This test is outdated after performance improvements');
 });
-
 
 it('applies pagination using scopeCustomPaginate', function (): void {
     global $builder, $model;

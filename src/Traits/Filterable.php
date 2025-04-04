@@ -2,22 +2,25 @@
 
 namespace DevactionLabs\FilterablePackage\Traits;
 
-use DevactionLabs\FilterablePackage\Filter;
 use Carbon\Carbon;
+use DevactionLabs\FilterablePackage\Filter;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Contracts\Pagination\Paginator;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Http\Request;
-use InvalidArgumentException;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 use JsonException;
 
 trait Filterable
 {
     protected string $defaultSort = '';
+
     protected array $allowedSorts = [];
+
     protected array $filterMap = [];
+
     private array $validationCache = [];
+
     private array $attributeCache = [];
 
     public function scopeCustomPaginate(Builder $builder, bool $useSimplePaginate = false, ?array $data = null): Paginator|LengthAwarePaginator
@@ -30,16 +33,16 @@ trait Filterable
             $data['sort'] = $this->defaultSort;
         }
 
-        if (!empty($data['sort'])) {
+        if (! empty($data['sort'])) {
             $orderBy = $data['sort'];
             if ($data['sort'][0] === '-') {
                 $orderBy = substr((string) $data['sort'], 1);
                 $order = 'DESC';
             }
-            if (!empty($this->allowedSorts) && !in_array($orderBy, $this->allowedSorts, true)) {
+            if (! empty($this->allowedSorts) && ! in_array($orderBy, $this->allowedSorts, true)) {
                 throw new InvalidArgumentException("The sort value [$orderBy] is not acceptable");
             }
-            if (!empty($this->filterMap[$orderBy])) {
+            if (! empty($this->filterMap[$orderBy])) {
                 $orderBy = $this->filterMap[$orderBy];
             }
             $builder->orderBy($orderBy, $order);
@@ -62,7 +65,7 @@ trait Filterable
         $this->applyDirectFilters($builder, $directFilters);
         $this->applyRelationshipFilters($builder, $relationshipFilters);
 
-        if (!empty($relationshipsToLoad)) {
+        if (! empty($relationshipsToLoad)) {
             $builder->with(array_keys($relationshipsToLoad));
         }
 
@@ -72,8 +75,6 @@ trait Filterable
     /**
      * Categorize filters into relationship and direct filters
      *
-     * @param array $filters
-     * @return array
      * @throws JsonException
      */
     private function categorizeFilters(array $filters): array
@@ -101,12 +102,11 @@ trait Filterable
     /**
      * Validate that the provided filter is valid
      *
-     * @param mixed $filter
      * @throws InvalidArgumentException
      */
     private function validateFilter(mixed $filter): void
     {
-        if (!($filter instanceof Filter)) {
+        if (! ($filter instanceof Filter)) {
             throw new InvalidArgumentException('Filterable must be an instance of Filter');
         }
     }
@@ -114,15 +114,13 @@ trait Filterable
     /**
      * Check if a relationship value is valid
      *
-     * @param string|null $relationship
-     * @return bool
      * @throws JsonException
      */
     private function isValidRelationship(?string $relationship): bool
     {
         $cacheKey = md5(json_encode($relationship ?? 'null', JSON_THROW_ON_ERROR));
 
-        if (!isset($this->validationCache[$cacheKey])) {
+        if (! isset($this->validationCache[$cacheKey])) {
             $this->validationCache[$cacheKey] = $relationship !== null && $relationship !== '' && $relationship !== '0';
         }
 
@@ -131,11 +129,6 @@ trait Filterable
 
     /**
      * Add a filter to the relationship filters and track relationships to load
-     *
-     * @param array $relationshipFilters
-     * @param array $relationshipsToLoad
-     * @param Filter $filter
-     * @param string $relationship
      */
     private function addRelationshipFilter(array &$relationshipFilters, array &$relationshipsToLoad, Filter $filter, string $relationship): void
     {
@@ -149,9 +142,6 @@ trait Filterable
 
     /**
      * Apply direct filters to the builder
-     *
-     * @param Builder $builder
-     * @param array $directFilters
      */
     private function applyDirectFilters(Builder $builder, array $directFilters): void
     {
@@ -161,6 +151,7 @@ trait Filterable
 
             if ($this->shouldApplyBetweenFilter($filter, $value)) {
                 $this->applyBetweenFilter($builder, $attribute, $value);
+
                 continue;
             }
 
@@ -174,9 +165,6 @@ trait Filterable
 
     /**
      * Apply relationship filters to the builder
-     *
-     * @param Builder $builder
-     * @param array $relationshipFilters
      */
     private function applyRelationshipFilters(Builder $builder, array $relationshipFilters): void
     {
@@ -184,15 +172,15 @@ trait Filterable
 
         foreach ($groupedFilters as $relationship => $filters) {
             if (count($filters) === 1
-                && !$this->hasConditionalLogic($filters)
+                && ! $this->hasConditionalLogic($filters)
                 && $filters[0]->getOperator() === '='
-                && !$this->hasJsonPath($filters[0])) {
+                && ! $this->hasJsonPath($filters[0])) {
 
                 $filter = $filters[0];
                 $attribute = $filter->getAttribute();
                 $value = $filter->getValue();
 
-                $builder->whereHas($relationship, function ($query) use ($attribute, $value) {
+                $builder->whereHas($relationship, function ($query) use ($attribute, $value): void {
                     $query->where($attribute, $value);
                 });
             } else {
@@ -209,9 +197,6 @@ trait Filterable
 
     /**
      * Group filters by their relationship
-     *
-     * @param array $relationshipFilters
-     * @return array
      */
     private function groupFiltersByRelationship(array $relationshipFilters): array
     {
@@ -219,7 +204,7 @@ trait Filterable
 
         foreach ($relationshipFilters as $filter) {
             $relationship = $filter->getRelationship();
-            if (!isset($grouped[$relationship])) {
+            if (! isset($grouped[$relationship])) {
                 $grouped[$relationship] = [];
             }
             $grouped[$relationship][] = $filter;
@@ -230,9 +215,6 @@ trait Filterable
 
     /**
      * Check if any filter has conditional logic
-     *
-     * @param array $filters
-     * @return bool
      */
     private function hasConditionalLogic(array $filters): bool
     {
@@ -248,9 +230,6 @@ trait Filterable
 
     /**
      * Apply filters with conditional logic
-     *
-     * @param Builder $query
-     * @param array $filters
      */
     private function applyFiltersWithConditionalLogic(Builder $query, array $filters): void
     {
@@ -261,8 +240,6 @@ trait Filterable
     /**
      * Collect conditions from filters
      *
-     * @param array $filters
-     * @return array
      * @throws JsonException
      */
     private function collectConditions(array $filters): array
@@ -290,16 +267,14 @@ trait Filterable
     /**
      * Check if a filter has conditional logic
      *
-     * @param Filter $filter
-     * @return bool
      * @throws JsonException
      */
     private function hasFilterConditionalLogic(Filter $filter): bool
     {
         $logic = $filter->getConditionalLogic();
-        $cacheKey = 'logic_' . md5(json_encode($logic ?? 'null', JSON_THROW_ON_ERROR));
+        $cacheKey = 'logic_'.md5(json_encode($logic ?? 'null', JSON_THROW_ON_ERROR));
 
-        if (!isset($this->validationCache[$cacheKey])) {
+        if (! isset($this->validationCache[$cacheKey])) {
             $this->validationCache[$cacheKey] = $logic !== null && $logic !== '' && $logic !== '0';
         }
 
@@ -308,9 +283,6 @@ trait Filterable
 
     /**
      * Add conditional conditions to the conditions array
-     *
-     * @param array $conditions
-     * @param array $newConditions
      */
     private function addConditionalConditions(array &$conditions, array $newConditions): void
     {
@@ -321,9 +293,6 @@ trait Filterable
 
     /**
      * Add a standard condition from a filter
-     *
-     * @param array $conditions
-     * @param Filter $filter
      */
     private function addStandardCondition(array &$conditions, Filter $filter): void
     {
@@ -334,10 +303,6 @@ trait Filterable
 
     /**
      * Apply conditional logic to a query
-     *
-     * @param Builder $query
-     * @param string|null $logic
-     * @param array $conditions
      */
     private function applyConditionalLogicToQuery(Builder $query, ?string $logic, array $conditions): void
     {
@@ -356,9 +321,6 @@ trait Filterable
 
     /**
      * Apply filters directly to a query
-     *
-     * @param Builder $query
-     * @param array $filters
      */
     private function applyFiltersDirectly(Builder $query, array $filters): void
     {
@@ -368,6 +330,7 @@ trait Filterable
 
             if ($this->shouldApplyBetweenFilter($filter, $value)) {
                 $this->applyBetweenFilter($query, $attribute, $value);
+
                 continue;
             }
 
@@ -377,16 +340,13 @@ trait Filterable
 
     /**
      * Resolve the attribute name for a filter
-     *
-     * @param Filter $filter
-     * @return string
      */
     private function resolveFilterAttribute(Filter $filter): string
     {
         $filterBy = $filter->getFilterBy();
         $cacheKey = md5($filterBy);
 
-        if (!isset($this->attributeCache[$cacheKey])) {
+        if (! isset($this->attributeCache[$cacheKey])) {
             $this->attributeCache[$cacheKey] = empty($this->filterMap[$filterBy])
                 ? $filter->getAttribute()
                 : $this->filterMap[$filterBy];
@@ -398,9 +358,6 @@ trait Filterable
     /**
      * Check if a between filter should be applied
      *
-     * @param Filter $filter
-     * @param mixed $value
-     * @return bool
      * @throws InvalidArgumentException
      */
     private function shouldApplyBetweenFilter(Filter $filter, mixed $value): bool
@@ -409,7 +366,7 @@ trait Filterable
             return false;
         }
 
-        if (!is_array($value) || count($value) !== 2) {
+        if (! is_array($value) || count($value) !== 2) {
             throw new InvalidArgumentException('The value for BETWEEN must be an array with exactly two elements.');
         }
 
@@ -418,10 +375,6 @@ trait Filterable
 
     /**
      * Apply a between filter to a builder
-     *
-     * @param Builder $builder
-     * @param string $attribute
-     * @param array $value
      */
     private function applyBetweenFilter(Builder $builder, string $attribute, array $value): void
     {
@@ -430,33 +383,28 @@ trait Filterable
 
     /**
      * Check if a filter has a JSON path
-     *
-     * @param Filter $filter
-     * @return bool
      */
     private function hasJsonPath(Filter $filter): bool
     {
         $path = $filter->getJsonPath();
+
         return $path !== null && $path !== '' && $path !== '0';
     }
 
     /**
      * Apply a filter to a builder
-     *
-     * @param Builder $builder
-     * @param Filter $filter
-     * @param string $attribute
-     * @param mixed $value
      */
     private function applyFilterToBuilder(Builder $builder, Filter $filter, string $attribute, mixed $value): void
     {
         if ($filter->getOperator() === 'IN') {
             $builder->whereIn($attribute, $value);
+
             return;
         }
 
         if ($value instanceof Carbon && $filter->isDate()) {
             $builder->whereBetween($attribute, [$value->startOfDay(), $value->endOfDay()]);
+
             return;
         }
 
@@ -467,12 +415,14 @@ trait Filterable
     {
         $this->defaultSort = $defaultSort;
         $this->allowedSorts = $allowedSorts;
+
         return $builder;
     }
 
     public function scopeFilterMap(Builder $builder, array $filterMap): Builder
     {
         $this->filterMap = $filterMap;
+
         return $builder;
     }
 }

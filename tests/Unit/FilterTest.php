@@ -3,9 +3,8 @@
 namespace Tests\Unit;
 
 use DevactionLabs\FilterablePackage\Filter;
-use InvalidArgumentException;
 use Illuminate\Support\Facades\Request;
-use Mockery;
+use InvalidArgumentException;
 
 beforeEach(function (): void {
     global $filters;
@@ -65,7 +64,7 @@ it('can create a json filter com like match', function (): void {
     $filter = Filter::json('data', 'user.name', 'LIKE')->setDatabaseDriver('mysql');
     expect($filter->getAttribute())->toBe("data->>'$.user.name'")
         ->and($filter->getOperator())->toBe('LIKE')
-        ->and($filter->getValue())->toBe('%' . $filters['data'] . '%');
+        ->and($filter->getValue())->toBe('%'.$filters['data'].'%');
 });
 
 it('can create a json filter com greater than match', function (): void {
@@ -86,7 +85,6 @@ it('can create a json filter com in match', function (): void {
     expect($filter->getAttribute())->toBe("data->>'$.user.roles'")
         ->and($filter->getOperator())->toBe('IN');
 });
-
 
 it('can create a between filter', function (): void {
     global $filters;
