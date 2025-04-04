@@ -54,122 +54,364 @@ trait Filterable
 
     public function scopeFilterable(Builder $builder, array $filters): Builder
     {
-        $relationshipFilters = [];
-        $directFilters = [];
-        $relationshipsToLoad = [];
-
-        foreach ($filters as $filter) {
-            if (!($filter instanceof Filter)) {
-                throw new InvalidArgumentException('Filterable must be an instance of Filter');
-            }
-            if ($filter->shouldIgnore()) {
-                continue;
-            }
-            $relationship = $filter->getRelationship();
-            if ($relationship !== null && $relationship !== '' && $relationship !== '0') {
-                $relationshipFilters[] = $filter;
-                if ($filter->shouldWith()) {
-                    $relationshipsToLoad[] = $relationship;
-                }
-            } else {
-                $directFilters[] = $filter;
-            }
-        }
-
-        foreach ($directFilters as $filter) {
-            $value = $filter->getValue();
-            $attribute = empty($this->filterMap[$filter->getFilterBy()]) ? $filter->getAttribute() : $this->filterMap[$filter->getFilterBy()];
-
-            if ($filter->getOperator() === 'BETWEEN') {
-                if (is_array($value) && count($value) === 2) {
-                    $builder->whereBetween($attribute, $value);
-                    continue;
-                }
-                throw new InvalidArgumentException('The value for BETWEEN must be an array with exactly two elements.');
-            }
-
-            if ($filter->getJsonPath() !== null && $filter->getJsonPath() !== '' && $filter->getJsonPath() !== '0') {
-                $attribute = DB::raw($attribute);
-            }
-
-            if ($filter->getOperator() === 'IN') {
-                $builder->whereIn($attribute, $value);
-            } elseif ($value instanceof Carbon && $filter->isDate()) {
-                $builder->whereBetween($attribute, [$value->startOfDay(), $value->endOfDay()]);
-            } else {
-                $builder->where($attribute, $filter->getOperator(), $value);
-            }
-        }
-
-        $groupedByRelationship = [];
-        foreach ($relationshipFilters as $filter) {
-            $relationship = $filter->getRelationship();
-            if (!isset($groupedByRelationship[$relationship])) {
-                $groupedByRelationship[$relationship] = [];
-            }
-            $groupedByRelationship[$relationship][] = $filter;
-        }
-
-        foreach ($groupedByRelationship as $relationship => $relationshipFilters) {
-            $builder->whereHas($relationship, function ($query) use ($relationshipFilters): void {
-                $hasConditionalLogic = false;
-                foreach ($relationshipFilters as $filter) {
-                    if ($filter->getConditionalLogic() !== null && $filter->getConditionalLogic() !== '' && $filter->getConditionalLogic() !== '0') {
-                        $hasConditionalLogic = true;
-                        break;
-                    }
-                }
-
-                if ($hasConditionalLogic) {
-                    $conditions = [];
-                    foreach ($relationshipFilters as $filter) {
-                        if ($filter->getConditionalLogic() !== null && $filter->getConditionalLogic() !== '' && $filter->getConditionalLogic() !== '0') {
-                            $conditions = array_merge($conditions, $filter->getConditionalConditions());
-                        } else {
-                            $value = $filter->getValue();
-                            $attribute = $filter->getAttribute();
-                            $conditions[] = [$attribute, $filter->getOperator(), $value];
-                        }
-                    }
-
-                    $logic = $relationshipFilters[0]->getConditionalLogic();
-                    if ($logic === 'any') {
-                        $query->whereAny($conditions);
-                    } elseif ($logic === 'all') {
-                        $query->whereAll($conditions);
-                    } elseif ($logic === 'none') {
-                        $query->whereNone($conditions);
-                    }
-                } else {
-                    foreach ($relationshipFilters as $filter) {
-                        $value = $filter->getValue();
-                        $attribute = empty($this->filterMap[$filter->getFilterBy()]) ? $filter->getAttribute() : $this->filterMap[$filter->getFilterBy()];
-
-                        if ($filter->getOperator() === 'BETWEEN') {
-                            if (is_array($value) && count($value) === 2) {
-                                $query->whereBetween($attribute, $value);
-                                continue;
-                            }
-                            throw new InvalidArgumentException('The value for BETWEEN must be an array with exactly two elements.');
-                        }
-
-                        if ($filter->getOperator() === 'IN') {
-                            $query->whereIn($attribute, $value);
-                        } elseif ($value instanceof Carbon && $filter->isDate()) {
-                            $query->whereBetween($attribute, [$value->startOfDay(), $value->endOfDay()]);
-                        } else {
-                            $query->where($attribute, $filter->getOperator(), $value);
-                        }
-                    }
-                }
-            });
-        }
-
-        if ($relationshipsToLoad !== []) {
+        [$relationshipFilters, $directFilters, $relationshipsToLoad] = $this->categorizeFilters($filters);
+        
+        $this->applyDirectFilters($builder, $directFilters);
+        $this->applyRelationshipFilters($builder, $relationshipFilters);
+        
+        if (!empty($relationshipsToLoad)) {
             $builder->with(array_unique($relationshipsToLoad));
         }
 
         return $builder;
+    }
+    
+    /**
+     * Categorize filters into relationship and direct filters
+     *
+     * @param array $filters
+     * @return array
+     */
+    private function categorizeFilters(array $filters): array
+    {
+        $relationshipFilters = [];
+        $directFilters = [];
+        $relationshipsToLoad = [];
+        
+        foreach ($filters as $filter) {
+            $this->validateFilter($filter);
+            
+            if ($filter->shouldIgnore()) {
+                continue;
+            }
+            
+            $relationship = $filter->getRelationship();
+            $this->isValidRelationship($relationship)
+                ? $this->addRelationshipFilter($relationshipFilters, $relationshipsToLoad, $filter, $relationship)
+                : $directFilters[] = $filter;
+        }
+        
+        return [$relationshipFilters, $directFilters, $relationshipsToLoad];
+    }
+    
+    /**
+     * Validate that the provided filter is valid
+     *
+     * @param mixed $filter
+     * @throws InvalidArgumentException
+     */
+    private function validateFilter(mixed $filter): void
+    {
+        if (!($filter instanceof Filter)) {
+            throw new InvalidArgumentException('Filterable must be an instance of Filter');
+        }
+    }
+    
+    /**
+     * Check if a relationship value is valid
+     *
+     * @param string|null $relationship
+     * @return bool
+     */
+    private function isValidRelationship(?string $relationship): bool
+    {
+        return $relationship !== null && $relationship !== '' && $relationship !== '0';
+    }
+    
+    /**
+     * Add a filter to the relationship filters and track relationships to load
+     *
+     * @param array $relationshipFilters
+     * @param array $relationshipsToLoad
+     * @param Filter $filter
+     * @param string $relationship
+     */
+    private function addRelationshipFilter(array &$relationshipFilters, array &$relationshipsToLoad, Filter $filter, string $relationship): void
+    {
+        $relationshipFilters[] = $filter;
+        
+        if ($filter->shouldWith()) {
+            $relationshipsToLoad[] = $relationship;
+        }
+    }
+    
+    /**
+     * Apply direct filters to the builder
+     *
+     * @param Builder $builder
+     * @param array $directFilters
+     */
+    private function applyDirectFilters(Builder $builder, array $directFilters): void
+    {
+        foreach ($directFilters as $filter) {
+            $value = $filter->getValue();
+            $attribute = $this->resolveFilterAttribute($filter);
+            
+            if ($this->shouldApplyBetweenFilter($filter, $value)) {
+                $this->applyBetweenFilter($builder, $attribute, $value);
+                continue;
+            }
+            
+            if ($this->hasJsonPath($filter)) {
+                $attribute = DB::raw($attribute);
+            }
+            
+            $this->applyFilterToBuilder($builder, $filter, $attribute, $value);
+        }
+    }
+    
+    /**
+     * Apply relationship filters to the builder
+     *
+     * @param Builder $builder
+     * @param array $relationshipFilters
+     */
+    private function applyRelationshipFilters(Builder $builder, array $relationshipFilters): void
+    {
+        $groupedFilters = $this->groupFiltersByRelationship($relationshipFilters);
+        
+        foreach ($groupedFilters as $relationship => $filters) {
+            $builder->whereHas($relationship, function ($query) use ($filters): void {
+                $hasConditionalLogic = $this->hasConditionalLogic($filters);
+                
+                $hasConditionalLogic
+                    ? $this->applyFiltersWithConditionalLogic($query, $filters)
+                    : $this->applyFiltersDirectly($query, $filters);
+            });
+        }
+    }
+    
+    /**
+     * Group filters by their relationship
+     *
+     * @param array $relationshipFilters
+     * @return array
+     */
+    private function groupFiltersByRelationship(array $relationshipFilters): array
+    {
+        $grouped = [];
+        
+        foreach ($relationshipFilters as $filter) {
+            $relationship = $filter->getRelationship();
+            if (!isset($grouped[$relationship])) {
+                $grouped[$relationship] = [];
+            }
+            $grouped[$relationship][] = $filter;
+        }
+        
+        return $grouped;
+    }
+    
+    /**
+     * Check if any filter has conditional logic
+     *
+     * @param array $filters
+     * @return bool
+     */
+    private function hasConditionalLogic(array $filters): bool
+    {
+        foreach ($filters as $filter) {
+            $logic = $filter->getConditionalLogic();
+            if ($logic !== null && $logic !== '' && $logic !== '0') {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Apply filters with conditional logic
+     *
+     * @param Builder $query
+     * @param array $filters
+     */
+    private function applyFiltersWithConditionalLogic(Builder $query, array $filters): void
+    {
+        $conditions = $this->collectConditions($filters);
+        $this->applyConditionalLogicToQuery($query, $filters[0]->getConditionalLogic(), $conditions);
+    }
+    
+    /**
+     * Collect conditions from filters
+     *
+     * @param array $filters
+     * @return array
+     */
+    private function collectConditions(array $filters): array
+    {
+        $conditions = [];
+        
+        foreach ($filters as $filter) {
+            $this->hasFilterConditionalLogic($filter)
+                ? $this->addConditionalConditions($conditions, $filter->getConditionalConditions())
+                : $this->addStandardCondition($conditions, $filter);
+        }
+        
+        return $conditions;
+    }
+    
+    /**
+     * Check if a filter has conditional logic
+     *
+     * @param Filter $filter
+     * @return bool
+     */
+    private function hasFilterConditionalLogic(Filter $filter): bool
+    {
+        $logic = $filter->getConditionalLogic();
+        return $logic !== null && $logic !== '' && $logic !== '0';
+    }
+    
+    /**
+     * Add conditional conditions to the conditions array
+     *
+     * @param array $conditions
+     * @param array $newConditions
+     */
+    private function addConditionalConditions(array &$conditions, array $newConditions): void
+    {
+        foreach ($newConditions as $condition) {
+            $conditions[] = $condition;
+        }
+    }
+    
+    /**
+     * Add a standard condition from a filter
+     *
+     * @param array $conditions
+     * @param Filter $filter
+     */
+    private function addStandardCondition(array &$conditions, Filter $filter): void
+    {
+        $value = $filter->getValue();
+        $attribute = $filter->getAttribute();
+        $conditions[] = [$attribute, $filter->getOperator(), $value];
+    }
+    
+    /**
+     * Apply conditional logic to a query
+     *
+     * @param Builder $query
+     * @param string|null $logic
+     * @param array $conditions
+     */
+    private function applyConditionalLogicToQuery(Builder $query, ?string $logic, array $conditions): void
+    {
+        if ($logic === 'any') {
+            $query->whereAny($conditions);
+            return;
+        }
+        
+        if ($logic === 'all') {
+            $query->whereAll($conditions);
+            return;
+        }
+        
+        if ($logic === 'none') {
+            $query->whereNone($conditions);
+        }
+    }
+    
+    /**
+     * Apply filters directly to a query
+     *
+     * @param Builder $query
+     * @param array $filters
+     */
+    private function applyFiltersDirectly(Builder $query, array $filters): void
+    {
+        foreach ($filters as $filter) {
+            $value = $filter->getValue();
+            $attribute = $this->resolveFilterAttribute($filter);
+            
+            if ($this->shouldApplyBetweenFilter($filter, $value)) {
+                $this->applyBetweenFilter($query, $attribute, $value);
+                continue;
+            }
+            
+            $this->applyFilterToBuilder($query, $filter, $attribute, $value);
+        }
+    }
+    
+    /**
+     * Resolve the attribute name for a filter
+     *
+     * @param Filter $filter
+     * @return string
+     */
+    private function resolveFilterAttribute(Filter $filter): string
+    {
+        $filterBy = $filter->getFilterBy();
+        return empty($this->filterMap[$filterBy]) ? $filter->getAttribute() : $this->filterMap[$filterBy];
+    }
+    
+    /**
+     * Check if a between filter should be applied
+     *
+     * @param Filter $filter
+     * @param mixed $value
+     * @return bool
+     * @throws InvalidArgumentException
+     */
+    private function shouldApplyBetweenFilter(Filter $filter, mixed $value): bool
+    {
+        if ($filter->getOperator() !== 'BETWEEN') {
+            return false;
+        }
+        
+        if (!is_array($value) || count($value) !== 2) {
+            throw new InvalidArgumentException('The value for BETWEEN must be an array with exactly two elements.');
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Apply a between filter to a builder
+     *
+     * @param Builder $builder
+     * @param string $attribute
+     * @param array $value
+     */
+    private function applyBetweenFilter(Builder $builder, string $attribute, array $value): void
+    {
+        $builder->whereBetween($attribute, $value);
+    }
+    
+    /**
+     * Check if a filter has a JSON path
+     *
+     * @param Filter $filter
+     * @return bool
+     */
+    private function hasJsonPath(Filter $filter): bool
+    {
+        $path = $filter->getJsonPath();
+        return $path !== null && $path !== '' && $path !== '0';
+    }
+    
+    /**
+     * Apply a filter to a builder
+     *
+     * @param Builder $builder
+     * @param Filter $filter
+     * @param string $attribute
+     * @param mixed $value
+     */
+    private function applyFilterToBuilder(Builder $builder, Filter $filter, string $attribute, mixed $value): void
+    {
+        if ($filter->getOperator() === 'IN') {
+            $builder->whereIn($attribute, $value);
+            return;
+        }
+        
+        if ($value instanceof Carbon && $filter->isDate()) {
+            $builder->whereBetween($attribute, [$value->startOfDay(), $value->endOfDay()]);
+            return;
+        }
+        
+        $builder->where($attribute, $filter->getOperator(), $value);
     }
 
     public function scopeAllowedSorts(Builder $builder, array $allowedSorts, string $defaultSort = ''): Builder
