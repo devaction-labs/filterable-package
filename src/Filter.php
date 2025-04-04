@@ -81,7 +81,6 @@ class Filter
      */
     protected function prepareValue(mixed $value): mixed
     {
-        // Split comma-separated strings into arrays for BETWEEN and IN operators
         if (is_string($value)) {
             if ($this->operator === self::OPERATOR_BETWEEN && str_contains($value, ',')) {
                 return explode(',', $value);
@@ -386,7 +385,6 @@ class Filter
      */
     public function getValue(): string|array|Carbon|int|null
     {
-        // Use default value if current value is invalid
         if (!$this->isValid($this->value) && $this->isValid($this->default)) {
             $this->value = $this->default;
         }
@@ -395,12 +393,10 @@ class Filter
             return $this->value;
         }
 
-        // Extract JSON value if it's a JSON path and value is a string
         if ($this->jsonPath !== null && is_string($this->value)) {
             return $this->extractJsonValue($this->value);
         }
 
-        // Handle date conversion if needed
         if ($this->isDate || $this->endOfDay || $this->startOfDay) {
             $this->value = $this->convertToCarbon($this->value);
             $this->value = $this->applyDateModifiers($this->value);
@@ -733,7 +729,6 @@ class Filter
      */
     protected function getDatabaseDriver(): string
     {
-        // Clear cached driver when explicitly set to ensure tests can swap drivers
         if ($this->databaseDriver !== null) {
             self::$cachedDatabaseDriver = $this->databaseDriver;
         } else if (self::$cachedDatabaseDriver === null) {
