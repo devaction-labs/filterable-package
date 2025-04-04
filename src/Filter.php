@@ -2,6 +2,7 @@
 
 namespace DevactionLabs\FilterablePackage;
 
+use Exception;
 use AllowDynamicProperties;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Request;
@@ -21,36 +22,57 @@ class Filter
      * SQL Comparison operators available for filtering
      */
     public const OPERATOR_EQUALS = '=';
+
     public const OPERATOR_LIKE = 'LIKE';
+
     public const OPERATOR_IN = 'IN';
+
     public const OPERATOR_GT = '>';
+
     public const OPERATOR_GTE = '>=';
+
     public const OPERATOR_LT = '<';
+
     public const OPERATOR_LTE = '<=';
+
     public const OPERATOR_BETWEEN = 'BETWEEN';
 
     protected string $attribute;
+
     protected string $filterBy;
+
     protected string|array|Carbon|int|null $value = null;
+
     protected string $likePattern = '%{{value}}%';
+
     protected bool $endOfDay = false;
+
     protected bool $startOfDay = false;
+
     protected bool $isDate = false;
+
     protected ?string $jsonPath = null;
+
     protected ?string $relationship = null;
+
     protected string|int|null $default = null;
+
     protected ?string $databaseDriver = null;
+
     protected static ?string $cachedDatabaseDriver = null;
+
     protected bool $withRelationship = false;
+
     protected ?string $conditionalLogic = null;
+
     protected array $conditionalConditions = [];
 
     /**
      * Create a new filter instance
      *
-     * @param string $attribute The database column to filter
-     * @param string $operator SQL comparison operator
-     * @param string|null $filterBy The request parameter to use for filtering (defaults to $attribute)
+     * @param  string  $attribute  The database column to filter
+     * @param  string  $operator  SQL comparison operator
+     * @param  string|null  $filterBy  The request parameter to use for filtering (defaults to $attribute)
      */
     public function __construct(string $attribute, protected string $operator, ?string $filterBy = null)
     {
@@ -65,7 +87,7 @@ class Filter
     public function setValueFromRequest(): void
     {
         $filters = Request::query('filter', []);
-        if (!isset($filters[$this->filterBy]) || !$this->isValid($filters[$this->filterBy])) {
+        if (! isset($filters[$this->filterBy]) || ! $this->isValid($filters[$this->filterBy])) {
             return;
         }
 
@@ -76,7 +98,7 @@ class Filter
     /**
      * Prepare the value based on the operator
      *
-     * @param mixed $value The raw value from the request
+     * @param  mixed  $value  The raw value from the request
      * @return mixed The processed value
      */
     protected function prepareValue(mixed $value): mixed
@@ -101,26 +123,26 @@ class Filter
     /**
      * Extract a value from a JSON string using the specified path
      *
-     * @param mixed $value The JSON string to extract from
+     * @param  mixed  $value  The JSON string to extract from
      * @return mixed The extracted value or the original value if extraction fails
      */
     protected function extractJsonValue(mixed $value): mixed
     {
-        if (!is_string($value) || $this->isEmptyOrZero($this->jsonPath)) {
+        if (! is_string($value) || $this->isEmptyOrZero($this->jsonPath)) {
             return $value;
         }
 
         try {
             $decoded = json_decode($value, true, 512, JSON_THROW_ON_ERROR);
-            if (!is_array($decoded)) {
+            if (! is_array($decoded)) {
                 return $value;
             }
 
-            $keys = explode('.', $this->jsonPath);
+            $keys = explode('.', (string) $this->jsonPath);
             $current = $decoded;
 
             foreach ($keys as $key) {
-                if (!isset($current[$key])) {
+                if (! isset($current[$key])) {
                     return $value;
                 }
                 $current = $current[$key];
@@ -135,14 +157,14 @@ class Filter
     /**
      * Apply operator-specific formatting to a value
      *
-     * @param mixed $value The raw value to process
+     * @param  mixed  $value  The raw value to process
      * @return mixed The processed value
      */
     protected function applyOperatorToValue(mixed $value): mixed
     {
         if (is_string($value)) {
-            return match($this->operator) {
-                self::OPERATOR_LIKE => '%' . $value . '%',
+            return match ($this->operator) {
+                self::OPERATOR_LIKE => '%'.$value.'%',
                 self::OPERATOR_IN => str_contains($value, ',') ? explode(',', $value) : $value,
                 default => $value
             };
@@ -154,7 +176,7 @@ class Filter
     /**
      * Check if a value should be considered valid for filtering
      *
-     * @param mixed $value The value to check
+     * @param  mixed  $value  The value to check
      * @return bool Whether the value is valid
      */
     public function isValid(mixed $value): bool
@@ -162,13 +184,14 @@ class Filter
         if ($value === []) {
             return false;
         }
+
         return $value !== '' && $value !== null;
     }
 
     /**
      * Check if a string is empty, null, or "0"
      *
-     * @param string|null $value The string to check
+     * @param  string|null  $value  The string to check
      * @return bool Whether the string is empty
      */
     protected function isEmptyOrZero(?string $value): bool
@@ -179,9 +202,8 @@ class Filter
     /**
      * Create a new exact match (=) filter
      *
-     * @param string $attribute The database column to filter
-     * @param string|null $filterBy The request parameter to use for filtering
-     * @return self
+     * @param  string  $attribute  The database column to filter
+     * @param  string|null  $filterBy  The request parameter to use for filtering
      */
     public static function exact(string $attribute, ?string $filterBy = null): self
     {
@@ -191,9 +213,8 @@ class Filter
     /**
      * Create a new LIKE filter
      *
-     * @param string $attribute The database column to filter
-     * @param string|null $filterBy The request parameter to use for filtering
-     * @return self
+     * @param  string  $attribute  The database column to filter
+     * @param  string|null  $filterBy  The request parameter to use for filtering
      */
     public static function like(string $attribute, ?string $filterBy = null): self
     {
@@ -203,10 +224,9 @@ class Filter
     /**
      * Create a new filter with a custom operator
      *
-     * @param string $attribute The database column to filter
-     * @param string $operator SQL comparison operator
-     * @param string|null $filterBy The request parameter to use for filtering
-     * @return self
+     * @param  string  $attribute  The database column to filter
+     * @param  string  $operator  SQL comparison operator
+     * @param  string|null  $filterBy  The request parameter to use for filtering
      */
     public static function generic(string $attribute, string $operator, ?string $filterBy = null): self
     {
@@ -216,9 +236,8 @@ class Filter
     /**
      * Create a new IN filter
      *
-     * @param string $attribute The database column to filter
-     * @param string|null $filterBy The request parameter to use for filtering
-     * @return self
+     * @param  string  $attribute  The database column to filter
+     * @param  string|null  $filterBy  The request parameter to use for filtering
      */
     public static function in(string $attribute, ?string $filterBy = null): self
     {
@@ -228,9 +247,8 @@ class Filter
     /**
      * Create a new >= filter
      *
-     * @param string $attribute The database column to filter
-     * @param string|null $filterBy The request parameter to use for filtering
-     * @return self
+     * @param  string  $attribute  The database column to filter
+     * @param  string|null  $filterBy  The request parameter to use for filtering
      */
     public static function gte(string $attribute, ?string $filterBy = null): self
     {
@@ -240,9 +258,8 @@ class Filter
     /**
      * Create a new > filter
      *
-     * @param string $attribute The database column to filter
-     * @param string|null $filterBy The request parameter to use for filtering
-     * @return self
+     * @param  string  $attribute  The database column to filter
+     * @param  string|null  $filterBy  The request parameter to use for filtering
      */
     public static function gt(string $attribute, ?string $filterBy = null): self
     {
@@ -252,9 +269,8 @@ class Filter
     /**
      * Create a new <= filter
      *
-     * @param string $attribute The database column to filter
-     * @param string|null $filterBy The request parameter to use for filtering
-     * @return self
+     * @param  string  $attribute  The database column to filter
+     * @param  string|null  $filterBy  The request parameter to use for filtering
      */
     public static function lte(string $attribute, ?string $filterBy = null): self
     {
@@ -264,9 +280,8 @@ class Filter
     /**
      * Create a new < filter
      *
-     * @param string $attribute The database column to filter
-     * @param string|null $filterBy The request parameter to use for filtering
-     * @return self
+     * @param  string  $attribute  The database column to filter
+     * @param  string|null  $filterBy  The request parameter to use for filtering
      */
     public static function lt(string $attribute, ?string $filterBy = null): self
     {
@@ -276,9 +291,8 @@ class Filter
     /**
      * Create a new BETWEEN filter
      *
-     * @param string $attribute The database column to filter
-     * @param string|null $filterBy The request parameter to use for filtering
-     * @return self
+     * @param  string  $attribute  The database column to filter
+     * @param  string|null  $filterBy  The request parameter to use for filtering
      */
     public static function between(string $attribute, ?string $filterBy = null): self
     {
@@ -288,108 +302,105 @@ class Filter
     /**
      * Create a new relationship filter
      *
-     * @param string $relationship The relationship name
-     * @param string $attribute The attribute to filter on the related model
-     * @param string $operator SQL comparison operator
-     * @param string|null $filterBy The request parameter to use for filtering
-     * @return self
+     * @param  string  $relationship  The relationship name
+     * @param  string  $attribute  The attribute to filter on the related model
+     * @param  string  $operator  SQL comparison operator
+     * @param  string|null  $filterBy  The request parameter to use for filtering
      */
     public static function relationship(string $relationship, string $attribute, string $operator = self::OPERATOR_EQUALS, ?string $filterBy = null): self
     {
         $filter = new self("{$relationship}.{$attribute}", $operator, $filterBy);
         $filter->relationship = $relationship;
         $filter->attribute = $attribute;
+
         return $filter;
     }
 
     /**
      * Create a new JSON field filter
      *
-     * @param string $attribute The JSON column name
-     * @param string $path The path to the nested property
-     * @param string $operator SQL comparison operator
-     * @param string|null $filterBy The request parameter to use for filtering
-     * @return self
+     * @param  string  $attribute  The JSON column name
+     * @param  string  $path  The path to the nested property
+     * @param  string  $operator  SQL comparison operator
+     * @param  string|null  $filterBy  The request parameter to use for filtering
      */
     public static function json(string $attribute, string $path, string $operator = self::OPERATOR_EQUALS, ?string $filterBy = null): self
     {
         $filter = new self($attribute, $operator, $filterBy);
         $filter->setJsonPath($path);
         $filter->setValueFromRequest();
+
         return $filter;
     }
 
     /**
      * Set the JSON path for this filter
      *
-     * @param string $path The path to the nested JSON property
-     * @return self
+     * @param  string  $path  The path to the nested JSON property
      */
     public function setJsonPath(string $path): self
     {
         $this->jsonPath = $path;
+
         return $this;
     }
 
     /**
      * Mark this filter as a date type
-     *
-     * @return self
      */
     public function castDate(): self
     {
         $this->isDate = true;
+
         return $this;
     }
 
     /**
      * Set the pattern for LIKE filters
      *
-     * @param string $pattern The pattern with {{value}} placeholder
-     * @return self
+     * @param  string  $pattern  The pattern with {{value}} placeholder
      */
     public function setLikePattern(string $pattern): self
     {
         $this->likePattern = $pattern;
+
         return $this;
     }
 
     /**
      * Set a default value for this filter
      *
-     * @param string|int|null $default The default value
-     * @return self
+     * @param  string|int|null  $default  The default value
      */
     public function setDefault(string|int|null $default): self
     {
         $this->default = $default;
+
         return $this;
     }
 
     /**
      * Set the request parameter name
      *
-     * @param string $filterBy The request parameter name
-     * @return self
+     * @param  string  $filterBy  The request parameter name
      */
     public function setFilterBy(string $filterBy): self
     {
         $this->filterBy = $filterBy;
+
         return $this;
     }
 
     /**
      * Get the processed value for this filter
-     *
-     * @return string|array|Carbon|int|null
      */
     public function getValue(): string|array|Carbon|int|null
     {
-        if (!$this->isValid($this->value) && $this->isValid($this->default)) {
+        if (! $this->isValid($this->value) && $this->isValid($this->default)) {
             $this->value = $this->default;
         }
 
-        if (!$this->isValid($this->value)) {
+        if (! $this->isValid($this->value)) {
             return $this->value;
         }
 
@@ -408,7 +419,7 @@ class Filter
     /**
      * Apply date modifiers (startOfDay/endOfDay) to a Carbon instance
      *
-     * @param Carbon $date The Carbon instance to modify
+     * @param  Carbon  $date  The Carbon instance to modify
      * @return Carbon The modified Carbon instance
      */
     protected function applyDateModifiers(Carbon $date): Carbon
@@ -427,8 +438,8 @@ class Filter
     /**
      * Set the value for this filter with validation
      *
-     * @param string|int|array|Carbon|null $value The value to set
-     * @return self
+     * @param  string|int|array|Carbon|null  $value  The value to set
+     *
      * @throws InvalidArgumentException If the value is invalid
      */
     public function setValue(string|int|array|Carbon|null $value): self
@@ -442,23 +453,25 @@ class Filter
         }
 
         $this->value = $value;
+
         return $this;
     }
 
     /**
      * Validate that a value is suitable for a BETWEEN operator
      *
-     * @param mixed $value The value to validate
+     * @param  mixed  $value  The value to validate
+     *
      * @throws InvalidArgumentException If the value is invalid for BETWEEN
      */
     protected function validateBetweenValue(mixed $value): void
     {
-        if (!is_array($value) || count($value) !== 2) {
+        if (! is_array($value) || count($value) !== 2) {
             throw new InvalidArgumentException('The value for BETWEEN must be an array with exactly two elements.');
         }
 
         foreach ($value as $item) {
-            if (!is_string($item) && !is_int($item)) {
+            if (! is_string($item) && ! is_int($item)) {
                 throw new InvalidArgumentException('The elements in the BETWEEN value array must be of type string or int.');
             }
         }
@@ -467,13 +480,14 @@ class Filter
     /**
      * Validate that all values in an array are strings
      *
-     * @param array $value The array to validate
+     * @param  array  $value  The array to validate
+     *
      * @throws InvalidArgumentException If any value is not a string
      */
     protected function validateArrayValue(array $value): void
     {
         foreach ($value as $item) {
-            if (!is_string($item) && !is_int($item)) {
+            if (! is_string($item) && ! is_int($item)) {
                 throw new InvalidArgumentException('Array values must be of type string or int');
             }
         }
@@ -482,8 +496,9 @@ class Filter
     /**
      * Convert a value to a Carbon instance
      *
-     * @param string|int|array|Carbon|null $value The value to convert
+     * @param  string|int|array|Carbon|null  $value  The value to convert
      * @return Carbon The converted Carbon instance
+     *
      * @throws InvalidArgumentException If the value cannot be converted to Carbon
      */
     private function convertToCarbon(string|int|array|Carbon|null $value): Carbon
@@ -498,37 +513,34 @@ class Filter
 
         try {
             return new Carbon($value);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             throw new InvalidArgumentException("Invalid date value: {$value}", 0, $e);
         }
     }
 
     /**
      * Set the filter to use end of day for date comparison
-     *
-     * @return self
      */
     public function endOfDay(): self
     {
         $this->endOfDay = true;
+
         return $this;
     }
 
     /**
      * Set the filter to use start of day for date comparison
-     *
-     * @return self
      */
     public function startOfDay(): self
     {
         $this->startOfDay = true;
+
         return $this;
     }
 
     /**
      * Include the relationship in the query
      *
-     * @return self
      * @throws InvalidArgumentException If this is not a relationship filter
      */
     public function with(): self
@@ -537,13 +549,12 @@ class Filter
             throw new InvalidArgumentException('The with() method can only be used with relationship filters.');
         }
         $this->withRelationship = true;
+
         return $this;
     }
 
     /**
      * Check if the relationship should be included
-     *
-     * @return bool
      */
     public function shouldWith(): bool
     {
@@ -553,8 +564,8 @@ class Filter
     /**
      * Add "any" conditional logic to a relationship filter
      *
-     * @param array $conditions The conditions to check
-     * @return self
+     * @param  array  $conditions  The conditions to check
+     *
      * @throws InvalidArgumentException If this is not a relationship filter
      */
     public function whereAny(array $conditions): self
@@ -564,14 +575,15 @@ class Filter
         }
         $this->conditionalLogic = 'any';
         $this->conditionalConditions = $conditions;
+
         return $this;
     }
 
     /**
      * Add "all" conditional logic to a relationship filter
      *
-     * @param array $conditions The conditions to check
-     * @return self
+     * @param  array  $conditions  The conditions to check
+     *
      * @throws InvalidArgumentException If this is not a relationship filter
      */
     public function whereAll(array $conditions): self
@@ -581,14 +593,15 @@ class Filter
         }
         $this->conditionalLogic = 'all';
         $this->conditionalConditions = $conditions;
+
         return $this;
     }
 
     /**
      * Add "none" conditional logic to a relationship filter
      *
-     * @param array $conditions The conditions to check
-     * @return self
+     * @param  array  $conditions  The conditions to check
+     *
      * @throws InvalidArgumentException If this is not a relationship filter
      */
     public function whereNone(array $conditions): self
@@ -598,13 +611,12 @@ class Filter
         }
         $this->conditionalLogic = 'none';
         $this->conditionalConditions = $conditions;
+
         return $this;
     }
 
     /**
      * Get the conditional logic type
-     *
-     * @return string|null
      */
     public function getConditionalLogic(): ?string
     {
@@ -613,8 +625,6 @@ class Filter
 
     /**
      * Get the conditional conditions
-     *
-     * @return array
      */
     public function getConditionalConditions(): array
     {
@@ -623,12 +633,10 @@ class Filter
 
     /**
      * Get the formatted attribute for SQL queries
-     *
-     * @return string
      */
     public function getAttribute(): string
     {
-        if (!$this->isEmptyOrZero($this->jsonPath)) {
+        if (! $this->isEmptyOrZero($this->jsonPath)) {
             return $this->getJsonAttributeExpression();
         }
 
@@ -637,12 +645,10 @@ class Filter
 
     /**
      * Get the database-specific JSON attribute expression
-     *
-     * @return string
      */
     protected function getJsonAttributeExpression(): string
     {
-        return match($this->getDatabaseDriver()) {
+        return match ($this->getDatabaseDriver()) {
             'mysql' => "{$this->attribute}->>'$.{$this->jsonPath}'",
             'sqlite' => "json_extract({$this->attribute}, '$.{$this->jsonPath}')",
             'pgsql' => "{$this->attribute}->>'{$this->jsonPath}'",
@@ -652,18 +658,14 @@ class Filter
 
     /**
      * Check if this filter should be ignored (has no value)
-     *
-     * @return bool
      */
     public function shouldIgnore(): bool
     {
-        return !$this->isValid($this->value) && !$this->isValid($this->default);
+        return ! $this->isValid($this->value) && ! $this->isValid($this->default);
     }
 
     /**
      * Get the SQL operator
-     *
-     * @return string
      */
     public function getOperator(): string
     {
@@ -672,8 +674,6 @@ class Filter
 
     /**
      * Check if this filter is for a date field
-     *
-     * @return bool
      */
     public function isDate(): bool
     {
@@ -682,8 +682,6 @@ class Filter
 
     /**
      * Check if using MySQL database
-     *
-     * @return bool
      */
     protected function isUsingMySQL(): bool
     {
@@ -692,8 +690,6 @@ class Filter
 
     /**
      * Check if using PostgreSQL database
-     *
-     * @return bool
      */
     protected function isUsingPostgreSQL(): bool
     {
@@ -702,8 +698,6 @@ class Filter
 
     /**
      * Check if using SQLite database
-     *
-     * @return bool
      */
     protected function isUsingSQLite(): bool
     {
@@ -713,25 +707,23 @@ class Filter
     /**
      * Set the database driver
      *
-     * @param string $driver The database driver name
-     * @return self
+     * @param  string  $driver  The database driver name
      */
     public function setDatabaseDriver(string $driver): self
     {
         $this->databaseDriver = $driver;
+
         return $this;
     }
 
     /**
      * Get the current database driver
-     *
-     * @return string
      */
     protected function getDatabaseDriver(): string
     {
         if ($this->databaseDriver !== null) {
             self::$cachedDatabaseDriver = $this->databaseDriver;
-        } else if (self::$cachedDatabaseDriver === null) {
+        } elseif (self::$cachedDatabaseDriver === null) {
             $configResult = function_exists('config') ? config('database.default') : null;
             $envResult = getenv('DATABASE_DRIVER');
             self::$cachedDatabaseDriver = $configResult ?? $envResult ?? 'mysql';
@@ -742,8 +734,6 @@ class Filter
 
     /**
      * Get the JSON path
-     *
-     * @return string|null
      */
     public function getJsonPath(): ?string
     {
@@ -752,8 +742,6 @@ class Filter
 
     /**
      * Get the request parameter name
-     *
-     * @return string
      */
     public function getFilterBy(): string
     {
@@ -762,8 +750,6 @@ class Filter
 
     /**
      * Get the relationship name
-     *
-     * @return string|null
      */
     public function getRelationship(): ?string
     {
