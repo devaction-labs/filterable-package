@@ -93,7 +93,7 @@ class Filter
     public function setValueFromRequest(): void
     {
         $filters = Request::query('filter', []);
-        if (!isset($filters[$this->filterBy]) || !$this->isValid($filters[$this->filterBy])) {
+        if (! isset($filters[$this->filterBy]) || ! $this->isValid($filters[$this->filterBy])) {
             return;
         }
 
@@ -437,6 +437,7 @@ class Filter
             if (is_string($this->value) || is_int($this->value)) {
                 try {
                     $carbonDate = $this->convertToCarbon($this->value);
+
                     return $this->applyDateModifiers($carbonDate);
                 } catch (InvalidArgumentException) {
                     // If conversion fails, return original value
