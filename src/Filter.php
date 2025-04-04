@@ -41,6 +41,9 @@ class Filter
 
     protected string $filterBy;
 
+    /**
+     * @var string|array<int|string>|Carbon|int|null
+     */
     protected string|array|Carbon|int|null $value = null;
 
     protected string $likePattern = '%{{value}}%';
@@ -65,6 +68,9 @@ class Filter
 
     protected ?string $conditionalLogic = null;
 
+    /**
+     * @var array<int, array<int, mixed>>
+     */
     protected array $conditionalConditions = [];
 
     /**
@@ -87,12 +93,17 @@ class Filter
     public function setValueFromRequest(): void
     {
         $filters = Request::query('filter', []);
-        if (! isset($filters[$this->filterBy]) || ! $this->isValid($filters[$this->filterBy])) {
+        if (!isset($filters[$this->filterBy]) || !$this->isValid($filters[$this->filterBy])) {
             return;
         }
 
         $value = $filters[$this->filterBy];
-        $this->value = $this->prepareValue($value);
+        $processedValue = $this->prepareValue($value);
+
+        if (is_string($processedValue) || is_int($processedValue) || is_array($processedValue) ||
+            $processedValue instanceof Carbon || $processedValue === null) {
+            $this->value = $processedValue;
+        }
     }
 
     /**
@@ -393,6 +404,8 @@ class Filter
 
     /**
      * Get the processed value for this filter
+     *
+     * @return string|array<int|string>|Carbon|int|null
      */
     public function getValue(): string|array|Carbon|int|null
     {
@@ -405,12 +418,31 @@ class Filter
         }
 
         if ($this->jsonPath !== null && is_string($this->value)) {
-            return $this->extractJsonValue($this->value);
+            $jsonValue = $this->extractJsonValue($this->value);
+
+            // Ensure we're returning a compatible type
+            if (is_string($jsonValue) || is_int($jsonValue) || is_array($jsonValue) || $jsonValue instanceof Carbon || $jsonValue === null) {
+                return $jsonValue;
+            }
+
+            // Fallback to original value if type is not compatible
+            return $this->value;
         }
 
         if ($this->isDate || $this->endOfDay || $this->startOfDay) {
-            $this->value = $this->convertToCarbon($this->value);
-            $this->value = $this->applyDateModifiers($this->value);
+            if ($this->value instanceof Carbon) {
+                return $this->applyDateModifiers($this->value);
+            }
+
+            if (is_string($this->value) || is_int($this->value)) {
+                try {
+                    $carbonDate = $this->convertToCarbon($this->value);
+                    return $this->applyDateModifiers($carbonDate);
+                } catch (InvalidArgumentException) {
+                    // If conversion fails, return original value
+                    return $this->value;
+                }
+            }
         }
 
         return $this->value;
@@ -438,7 +470,7 @@ class Filter
     /**
      * Set the value for this filter with validation
      *
-     * @param  string|int|array|Carbon|null  $value  The value to set
+     * @param  string|int|array<int|string>|Carbon|null  $value  The value to set
      *
      * @throws InvalidArgumentException If the value is invalid
      */
@@ -478,11 +510,11 @@ class Filter
     }
 
     /**
-     * Validate that all values in an array are strings
+     * Validate that all values in an array are strings or integers
      *
-     * @param  array  $value  The array to validate
+     * @param  array<int|string>  $value  The array to validate
      *
-     * @throws InvalidArgumentException If any value is not a string
+     * @throws InvalidArgumentException If any value is not a string or integer
      */
     protected function validateArrayValue(array $value): void
     {
@@ -496,7 +528,7 @@ class Filter
     /**
      * Convert a value to a Carbon instance
      *
-     * @param  string|int|array|Carbon|null  $value  The value to convert
+     * @param  string|int|array<int|string>|Carbon|null  $value  The value to convert
      * @return Carbon The converted Carbon instance
      *
      * @throws InvalidArgumentException If the value cannot be converted to Carbon
@@ -564,7 +596,7 @@ class Filter
     /**
      * Add "any" conditional logic to a relationship filter
      *
-     * @param  array  $conditions  The conditions to check
+     * @param  array<int, array<int, mixed>>  $conditions  The conditions to check
      *
      * @throws InvalidArgumentException If this is not a relationship filter
      */
@@ -582,7 +614,7 @@ class Filter
     /**
      * Add "all" conditional logic to a relationship filter
      *
-     * @param  array  $conditions  The conditions to check
+     * @param  array<int, array<int, mixed>>  $conditions  The conditions to check
      *
      * @throws InvalidArgumentException If this is not a relationship filter
      */
@@ -600,7 +632,7 @@ class Filter
     /**
      * Add "none" conditional logic to a relationship filter
      *
-     * @param  array  $conditions  The conditions to check
+     * @param  array<int, array<int, mixed>>  $conditions  The conditions to check
      *
      * @throws InvalidArgumentException If this is not a relationship filter
      */
@@ -625,6 +657,8 @@ class Filter
 
     /**
      * Get the conditional conditions
+     *
+     * @return array<int, array<int, mixed>>
      */
     public function getConditionalConditions(): array
     {
@@ -725,7 +759,7 @@ class Filter
             self::$cachedDatabaseDriver = $this->databaseDriver;
         } elseif (self::$cachedDatabaseDriver === null) {
             $configResult = function_exists('config') ? config('database.default') : null;
-            $envResult = getenv('DATABASE_DRIVER');
+            $envResult = getenv('DATABASE_DRIVER') ?: null;
             self::$cachedDatabaseDriver = $configResult ?? $envResult ?? 'mysql';
         }
 
