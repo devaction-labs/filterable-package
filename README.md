@@ -308,7 +308,7 @@ class ProductController extends Controller
             // Apply pagination with custom parameters
             ->customPaginate(false, [
                 'per_page' => $request->input('per_page', 15),
-                'sort' => $request->input('sort', '-created_at'),
+                'sort' => $request->input('sort', '-created_at'),===========fffdfdfsdddddddddddsdsdsdsads
             ]);
 
         return response()->json($products);
