@@ -117,18 +117,11 @@ trait Filterable
 
     /**
      * Check if a relationship value is valid
-     *
-     * @throws JsonException
      */
     private function isValidRelationship(?string $relationship): bool
     {
-        $cacheKey = md5(json_encode($relationship ?? 'null', JSON_THROW_ON_ERROR));
-
-        if (! isset($this->validationCache[$cacheKey])) {
-            $this->validationCache[$cacheKey] = $relationship !== null && $relationship !== '' && $relationship !== '0';
-        }
-
-        return $this->validationCache[$cacheKey];
+        // Direct validation without expensive cache key generation
+        return $relationship !== null && $relationship !== '' && $relationship !== '0';
     }
 
     /**
@@ -175,27 +168,29 @@ trait Filterable
         $groupedFilters = $this->groupFiltersByRelationship($relationshipFilters);
 
         foreach ($groupedFilters as $relationship => $filters) {
-            if (count($filters) === 1
-                && ! $this->hasConditionalLogic($filters)
-                && $filters[0]->getOperator() === '='
-                && ! $this->hasJsonPath($filters[0])) {
-
+            // Optimization: Use simple where for single equality filters without JSON/conditional logic
+            if (count($filters) === 1) {
                 $filter = $filters[0];
-                $attribute = $filter->getAttribute();
-                $value = $filter->getValue();
+                if ($filter->getOperator() === '=' && ! $this->hasJsonPath($filter) && ! $filter->getConditionalLogic()) {
+                    $attribute = $filter->getAttribute();
+                    $value = $filter->getValue();
 
-                $builder->whereHas($relationship, function ($query) use ($attribute, $value): void {
-                    $query->where($attribute, $value);
-                });
-            } else {
-                $builder->whereHas($relationship, function ($query) use ($filters): void {
-                    $hasConditionalLogic = $this->hasConditionalLogic($filters);
+                    $builder->whereHas($relationship, function ($query) use ($attribute, $value): void {
+                        $query->where($attribute, $value);
+                    });
 
-                    $hasConditionalLogic
-                        ? $this->applyFiltersWithConditionalLogic($query, $filters)
-                        : $this->applyFiltersDirectly($query, $filters);
-                });
+                    continue;
+                }
             }
+
+            // Handle complex filters
+            $builder->whereHas($relationship, function ($query) use ($filters): void {
+                $hasConditionalLogic = $this->hasConditionalLogic($filters);
+
+                $hasConditionalLogic
+                    ? $this->applyFiltersWithConditionalLogic($query, $filters)
+                    : $this->applyFiltersDirectly($query, $filters);
+            });
         }
     }
 
@@ -270,19 +265,13 @@ trait Filterable
 
     /**
      * Check if a filter has conditional logic
-     *
-     * @throws JsonException
      */
     private function hasFilterConditionalLogic(Filter $filter): bool
     {
         $logic = $filter->getConditionalLogic();
-        $cacheKey = 'logic_'.md5(json_encode($logic ?? 'null', JSON_THROW_ON_ERROR));
 
-        if (! isset($this->validationCache[$cacheKey])) {
-            $this->validationCache[$cacheKey] = $logic !== null && $logic !== '' && $logic !== '0';
-        }
-
-        return $this->validationCache[$cacheKey];
+        // Direct validation - this is a simple string check, no need for caching
+        return $logic !== null && $logic !== '' && $logic !== '0';
     }
 
     /**
@@ -348,15 +337,15 @@ trait Filterable
     private function resolveFilterAttribute(Filter $filter): string
     {
         $filterBy = $filter->getFilterBy();
-        $cacheKey = md5($filterBy);
 
-        if (! isset($this->attributeCache[$cacheKey])) {
-            $this->attributeCache[$cacheKey] = empty($this->filterMap[$filterBy])
+        // Use filterBy directly as cache key - more efficient than MD5
+        if (! isset($this->attributeCache[$filterBy])) {
+            $this->attributeCache[$filterBy] = empty($this->filterMap[$filterBy])
                 ? $filter->getAttribute()
                 : $this->filterMap[$filterBy];
         }
 
-        return $this->attributeCache[$cacheKey];
+        return $this->attributeCache[$filterBy];
     }
 
     /**

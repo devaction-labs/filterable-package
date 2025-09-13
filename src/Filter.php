@@ -64,6 +64,13 @@ class Filter
 
     protected static ?string $cachedDatabaseDriver = null;
 
+    protected static bool $driverInitialized = false;
+
+    /**
+     * @var array<string, string>
+     */
+    private static array $jsonExpressionCache = [];
+
     protected bool $withRelationship = false;
 
     protected ?string $conditionalLogic = null;
@@ -114,18 +121,18 @@ class Filter
      */
     protected function prepareValue(mixed $value): mixed
     {
-        if (is_string($value)) {
-            if ($this->operator === self::OPERATOR_BETWEEN && str_contains($value, ',')) {
-                return explode(',', $value);
-            }
+        if (! is_string($value)) {
+            return $value;
+        }
 
-            if ($this->operator === self::OPERATOR_LIKE) {
-                return str_replace('{{value}}', $value, $this->likePattern);
-            }
+        // Early return for common operators that need comma splitting
+        if (($this->operator === self::OPERATOR_BETWEEN || $this->operator === self::OPERATOR_IN)
+            && str_contains($value, ',')) {
+            return explode(',', $value);
+        }
 
-            if ($this->operator === self::OPERATOR_IN && str_contains($value, ',')) {
-                return explode(',', $value);
-            }
+        if ($this->operator === self::OPERATOR_LIKE) {
+            return str_replace('{{value}}', $value, $this->likePattern);
         }
 
         return $value;
@@ -683,12 +690,18 @@ class Filter
      */
     protected function getJsonAttributeExpression(): string
     {
-        return match ($this->getDatabaseDriver()) {
-            'mysql' => "{$this->attribute}->>'$.{$this->jsonPath}'",
-            'sqlite' => "json_extract({$this->attribute}, '$.{$this->jsonPath}')",
-            'pgsql' => "{$this->attribute}->>'{$this->jsonPath}'",
-            default => $this->attribute
-        };
+        $cacheKey = $this->getDatabaseDriver().'|'.$this->attribute.'|'.$this->jsonPath;
+
+        if (! isset(self::$jsonExpressionCache[$cacheKey])) {
+            self::$jsonExpressionCache[$cacheKey] = match ($this->getDatabaseDriver()) {
+                'mysql' => "{$this->attribute}->>'$.{$this->jsonPath}'",
+                'sqlite' => "json_extract({$this->attribute}, '$.{$this->jsonPath}')",
+                'pgsql' => "{$this->attribute}->>'{$this->jsonPath}'",
+                default => $this->attribute
+            };
+        }
+
+        return self::$jsonExpressionCache[$cacheKey];
     }
 
     /**
@@ -757,14 +770,17 @@ class Filter
     protected function getDatabaseDriver(): string
     {
         if ($this->databaseDriver !== null) {
-            self::$cachedDatabaseDriver = $this->databaseDriver;
-        } elseif (self::$cachedDatabaseDriver === null) {
+            return $this->databaseDriver;
+        }
+
+        if (! self::$driverInitialized) {
             $configResult = function_exists('config') ? config('database.default') : null;
             $envResult = getenv('DATABASE_DRIVER') ?: null;
             self::$cachedDatabaseDriver = $configResult ?? $envResult ?? 'mysql';
+            self::$driverInitialized = true;
         }
 
-        return self::$cachedDatabaseDriver;
+        return self::$cachedDatabaseDriver ?? 'mysql';
     }
 
     /**
