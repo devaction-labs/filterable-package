@@ -22,7 +22,7 @@
     "require-dev": {
         "laravel/pint": "^1.13.7",
         "mockery/mockery": "^1.6",
-        "pestphp/pest": "^3",
+        "pestphp/pest": "^4",
         "phpstan/phpstan": "^1.11",
         "rector/rector": "^1.2",
         "roave/security-advisories": "dev-latest",

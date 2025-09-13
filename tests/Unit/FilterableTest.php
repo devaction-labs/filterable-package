@@ -2,11 +2,11 @@
 
 namespace Tests\Unit;
 
+use DevactionLabs\FilterablePackage\Filter;
 use DevactionLabs\FilterablePackage\Traits\Filterable;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Request;
 use Mockery;
 
 class FilterableTest extends Model
@@ -17,16 +17,36 @@ class FilterableTest extends Model
 beforeEach(function (): void {
     global $builder, $model;
 
-    $builder = Mockery::mock(Builder::class);
+    Mockery::close();
 
-    Request::shouldReceive('query')
-        ->andReturn(['name' => 'John']);
+    $builder = Mockery::mock(Builder::class);
 
     $model = new FilterableTest;
 });
 
 it('applies exact filter using scopeFilterable', function (): void {
-    $this->markTestSkipped('This test is outdated after performance improvements');
+    global $model;
+
+    $builder = Mockery::mock(Builder::class);
+    $filter = Mockery::mock(Filter::class);
+
+    $filter->shouldReceive('shouldIgnore')->andReturn(false);
+    $filter->shouldReceive('getRelationship')->andReturn(null);
+    $filter->shouldReceive('getAttribute')->andReturn('name');
+    $filter->shouldReceive('getValue')->andReturn('John');
+    $filter->shouldReceive('getFilterBy')->andReturn('name');
+    $filter->shouldReceive('getOperator')->andReturn('=');
+    $filter->shouldReceive('getJsonPath')->andReturn(null);
+    $filter->shouldReceive('isDate')->andReturn(false);
+
+    $builder->shouldReceive('where')
+        ->once()
+        ->with('name', '=', 'John')
+        ->andReturnSelf();
+
+    $result = $model->scopeFilterable($builder, [$filter]);
+
+    expect($result)->toBe($builder);
 });
 
 it('applies pagination using scopeCustomPaginate', function (): void {

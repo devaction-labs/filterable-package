@@ -24,6 +24,8 @@ trait Filterable
 
     private array $attributeCache = [];
 
+    private static int $attributeCacheLimit = 500;
+
     public function scopeCustomPaginate(Builder $builder, bool $useSimplePaginate = false, ?array $data = null): Paginator|LengthAwarePaginator
     {
         $data ??= request()->only('per_page', 'sort');
@@ -168,7 +170,6 @@ trait Filterable
         $groupedFilters = $this->groupFiltersByRelationship($relationshipFilters);
 
         foreach ($groupedFilters as $relationship => $filters) {
-            // Optimization: Use simple where for single equality filters without JSON/conditional logic
             if (count($filters) === 1) {
                 $filter = $filters[0];
                 if ($filter->getOperator() === '=' && ! $this->hasJsonPath($filter) && ! $filter->getConditionalLogic()) {
@@ -183,7 +184,6 @@ trait Filterable
                 }
             }
 
-            // Handle complex filters
             $builder->whereHas($relationship, function ($query) use ($filters): void {
                 $hasConditionalLogic = $this->hasConditionalLogic($filters);
 
@@ -270,7 +270,6 @@ trait Filterable
     {
         $logic = $filter->getConditionalLogic();
 
-        // Direct validation - this is a simple string check, no need for caching
         return $logic !== null && $logic !== '' && $logic !== '0';
     }
 
@@ -338,8 +337,11 @@ trait Filterable
     {
         $filterBy = $filter->getFilterBy();
 
-        // Use filterBy directly as cache key - more efficient than MD5
         if (! isset($this->attributeCache[$filterBy])) {
+            if (count($this->attributeCache) >= self::$attributeCacheLimit) {
+                $this->attributeCache = array_slice($this->attributeCache, -250, null, true);
+            }
+
             $this->attributeCache[$filterBy] = empty($this->filterMap[$filterBy])
                 ? $filter->getAttribute()
                 : $this->filterMap[$filterBy];

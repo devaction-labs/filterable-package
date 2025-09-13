@@ -18,9 +18,6 @@ use JsonException;
 #[AllowDynamicProperties]
 class Filter
 {
-    /**
-     * SQL Comparison operators available for filtering
-     */
     public const OPERATOR_EQUALS = '=';
 
     public const OPERATOR_LIKE = 'LIKE';
@@ -71,9 +68,13 @@ class Filter
      */
     private static array $jsonExpressionCache = [];
 
+    private static int $cacheLimit = 1000;
+
     protected bool $withRelationship = false;
 
     protected ?string $conditionalLogic = null;
+
+    protected bool $valueInitialized = false;
 
     /**
      * @var array<int, array<int, mixed>>
@@ -91,14 +92,20 @@ class Filter
     {
         $this->filterBy = $filterBy ?? $attribute;
         $this->attribute = $attribute;
-        $this->setValueFromRequest();
+        // Don't initialize value from request in constructor - use lazy loading
     }
 
     /**
-     * Set the filter value from the current request
+     * Set the filter value from the current request - using lazy loading
      */
     public function setValueFromRequest(): void
     {
+        if ($this->valueInitialized) {
+            return;
+        }
+
+        $this->valueInitialized = true;
+
         $filters = Request::query('filter', []);
         if (! isset($filters[$this->filterBy]) || ! $this->isValid($filters[$this->filterBy])) {
             return;
@@ -125,7 +132,6 @@ class Filter
             return $value;
         }
 
-        // Early return for common operators that need comma splitting
         if (($this->operator === self::OPERATOR_BETWEEN || $this->operator === self::OPERATOR_IN)
             && str_contains($value, ',')) {
             return explode(',', $value);
@@ -199,11 +205,74 @@ class Filter
      */
     public function isValid(mixed $value): bool
     {
-        if ($value === []) {
+        if ($value === [] || $value === null || $value === '') {
             return false;
         }
 
-        return $value !== '' && $value !== null;
+        // Additional validation based on operator type
+        return $this->validateByOperator($value);
+    }
+
+    /**
+     * Validate value based on the specific operator requirements
+     *
+     * @param  mixed  $value  The value to validate
+     * @return bool Whether the value is valid for this operator
+     */
+    protected function validateByOperator(mixed $value): bool
+    {
+        return match ($this->operator) {
+            self::OPERATOR_BETWEEN => $this->validateBetweenOperator($value),
+            self::OPERATOR_IN => $this->validateInOperator($value),
+            self::OPERATOR_LIKE => $this->validateLikeOperator($value),
+            default => $this->validateStandardOperator($value)
+        };
+    }
+
+    /**
+     * Validate value for BETWEEN operator
+     */
+    protected function validateBetweenOperator(mixed $value): bool
+    {
+        if (is_string($value) && str_contains($value, ',')) {
+            $parts = explode(',', $value);
+
+            return count($parts) === 2 && ! in_array(trim($parts[0]), ['', '0'], true) && ! in_array(trim($parts[1]), ['', '0'], true);
+        }
+
+        return is_array($value) && count($value) === 2;
+    }
+
+    /**
+     * Validate value for IN operator
+     */
+    protected function validateInOperator(mixed $value): bool
+    {
+        if (is_string($value)) {
+            return ! in_array(trim($value), ['', '0'], true);
+        }
+
+        return is_array($value) && $value !== [];
+    }
+
+    /**
+     * Validate value for LIKE operator
+     */
+    protected function validateLikeOperator(mixed $value): bool
+    {
+        return is_string($value) && ! in_array(trim($value), ['', '0'], true);
+    }
+
+    /**
+     * Validate value for standard operators (=, >, <, >=, <=)
+     */
+    protected function validateStandardOperator(mixed $value): bool
+    {
+        if (is_string($value)) {
+            return ! in_array(trim($value), ['', '0'], true);
+        }
+
+        return is_numeric($value) || $value instanceof Carbon;
     }
 
     /**
@@ -416,6 +485,10 @@ class Filter
      */
     public function getValue(): string|array|Carbon|int|null
     {
+        if (! $this->valueInitialized) {
+            $this->setValueFromRequest();
+        }
+
         if (! $this->isValid($this->value) && $this->isValid($this->default)) {
             $this->value = $this->default;
         }
@@ -427,12 +500,10 @@ class Filter
         if ($this->jsonPath !== null && is_string($this->value)) {
             $jsonValue = $this->extractJsonValue($this->value);
 
-            // Ensure we're returning a compatible type
             if (is_string($jsonValue) || is_int($jsonValue) || is_array($jsonValue) || $jsonValue instanceof Carbon || $jsonValue === null) {
                 return $jsonValue;
             }
 
-            // Fallback to original value if type is not compatible
             return $this->value;
         }
 
@@ -447,7 +518,6 @@ class Filter
 
                     return $this->applyDateModifiers($carbonDate);
                 } catch (InvalidArgumentException) {
-                    // If conversion fails, return original value
                     return $this->value;
                 }
             }
@@ -693,6 +763,11 @@ class Filter
         $cacheKey = $this->getDatabaseDriver().'|'.$this->attribute.'|'.$this->jsonPath;
 
         if (! isset(self::$jsonExpressionCache[$cacheKey])) {
+            // Manage cache size to prevent memory bloat
+            if (count(self::$jsonExpressionCache) >= self::$cacheLimit) {
+                self::$jsonExpressionCache = array_slice(self::$jsonExpressionCache, -500, null, true);
+            }
+
             self::$jsonExpressionCache[$cacheKey] = match ($this->getDatabaseDriver()) {
                 'mysql' => "{$this->attribute}->>'$.{$this->jsonPath}'",
                 'sqlite' => "json_extract({$this->attribute}, '$.{$this->jsonPath}')",
@@ -709,6 +784,10 @@ class Filter
      */
     public function shouldIgnore(): bool
     {
+        if (! $this->valueInitialized) {
+            $this->setValueFromRequest();
+        }
+
         return ! $this->isValid($this->value) && ! $this->isValid($this->default);
     }
 
@@ -805,5 +884,15 @@ class Filter
     public function getRelationship(): ?string
     {
         return $this->relationship;
+    }
+
+    /**
+     * Clear static caches - useful for long-running processes
+     */
+    public static function clearCaches(): void
+    {
+        self::$jsonExpressionCache = [];
+        self::$cachedDatabaseDriver = null;
+        self::$driverInitialized = false;
     }
 }
