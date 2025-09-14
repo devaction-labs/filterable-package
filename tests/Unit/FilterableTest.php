@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use DevactionLabs\FilterablePackage\Filter;
 use DevactionLabs\FilterablePackage\Traits\Filterable;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -17,6 +18,7 @@ class FilterableTest extends Model
 beforeEach(function (): void {
     global $builder, $model;
 
+    Mockery::close();
     $builder = Mockery::mock(Builder::class);
 
     Request::shouldReceive('query')
@@ -25,8 +27,25 @@ beforeEach(function (): void {
     $model = new FilterableTest;
 });
 
+afterEach(function (): void {
+    Mockery::close();
+});
+
 it('applies exact filter using scopeFilterable', function (): void {
-    $this->markTestSkipped('This test is outdated after performance improvements');
+    global $builder, $model;
+
+    $builder->shouldReceive('where')
+        ->once()
+        ->with('name', '=', 'John')
+        ->andReturnSelf();
+
+    // Allow with() calls for relationship loading
+    $builder->shouldReceive('with')
+        ->zeroOrMoreTimes()
+        ->andReturnSelf();
+
+    $filters = [Filter::exact('name')->setValue('John')];
+    $model->scopeFilterable($builder, $filters);
 });
 
 it('applies pagination using scopeCustomPaginate', function (): void {
