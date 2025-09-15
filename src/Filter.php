@@ -37,6 +37,22 @@ class Filter
 
     public const OPERATOR_BETWEEN = 'BETWEEN';
 
+    public const OPERATOR_ILIKE = 'ILIKE';
+
+    public const OPERATOR_NOT_EQUALS = '!=';
+
+    public const OPERATOR_NOT_IN = 'NOT IN';
+
+    public const OPERATOR_NOT_LIKE = 'NOT LIKE';
+
+    public const OPERATOR_IS_NULL = 'IS NULL';
+
+    public const OPERATOR_IS_NOT_NULL = 'IS NOT NULL';
+
+    public const OPERATOR_STARTS_WITH = 'STARTS_WITH';
+
+    public const OPERATOR_ENDS_WITH = 'ENDS_WITH';
+
     protected string $attribute;
 
     protected string $filterBy;
@@ -123,7 +139,19 @@ class Filter
                 return str_replace('{{value}}', $value, $this->likePattern);
             }
 
-            if ($this->operator === self::OPERATOR_IN && str_contains($value, ',')) {
+            if ($this->operator === self::OPERATOR_NOT_LIKE) {
+                return str_replace('{{value}}', $value, $this->likePattern);
+            }
+
+            if ($this->operator === self::OPERATOR_STARTS_WITH) {
+                return $value . '%';
+            }
+
+            if ($this->operator === self::OPERATOR_ENDS_WITH) {
+                return '%' . $value;
+            }
+
+            if (($this->operator === self::OPERATOR_IN || $this->operator === self::OPERATOR_NOT_IN) && str_contains($value, ',')) {
                 return explode(',', $value);
             }
         }
@@ -309,6 +337,95 @@ class Filter
     {
         return new self($attribute, self::OPERATOR_BETWEEN, $filterBy);
     }
+
+    /**
+     * Create a new ILIKE filter (case-insensitive LIKE for PostgreSQL)
+     *
+     * @param  string  $attribute  The database column to filter
+     * @param  string|null  $filterBy  The request parameter to use for filtering
+     */
+    public static function ilike(string $attribute, ?string $filterBy = null): self
+    {
+        return new self($attribute, self::OPERATOR_ILIKE, $filterBy);
+    }
+
+    /**
+     * Create a new NOT EQUALS (!=) filter
+     *
+     * @param  string  $attribute  The database column to filter
+     * @param  string|null  $filterBy  The request parameter to use for filtering
+     */
+    public static function notEquals(string $attribute, ?string $filterBy = null): self
+    {
+        return new self($attribute, self::OPERATOR_NOT_EQUALS, $filterBy);
+    }
+
+    /**
+     * Create a new NOT IN filter
+     *
+     * @param  string  $attribute  The database column to filter
+     * @param  string|null  $filterBy  The request parameter to use for filtering
+     */
+    public static function notIn(string $attribute, ?string $filterBy = null): self
+    {
+        return new self($attribute, self::OPERATOR_NOT_IN, $filterBy);
+    }
+
+    /**
+     * Create a new NOT LIKE filter
+     *
+     * @param  string  $attribute  The database column to filter
+     * @param  string|null  $filterBy  The request parameter to use for filtering
+     */
+    public static function notLike(string $attribute, ?string $filterBy = null): self
+    {
+        return new self($attribute, self::OPERATOR_NOT_LIKE, $filterBy);
+    }
+
+    /**
+     * Create a new IS NULL filter
+     *
+     * @param  string  $attribute  The database column to filter
+     * @param  string|null  $filterBy  The request parameter to use for filtering
+     */
+    public static function isNull(string $attribute, ?string $filterBy = null): self
+    {
+        return new self($attribute, self::OPERATOR_IS_NULL, $filterBy);
+    }
+
+    /**
+     * Create a new IS NOT NULL filter
+     *
+     * @param  string  $attribute  The database column to filter
+     * @param  string|null  $filterBy  The request parameter to use for filtering
+     */
+    public static function isNotNull(string $attribute, ?string $filterBy = null): self
+    {
+        return new self($attribute, self::OPERATOR_IS_NOT_NULL, $filterBy);
+    }
+
+    /**
+     * Create a new STARTS WITH filter
+     *
+     * @param  string  $attribute  The database column to filter
+     * @param  string|null  $filterBy  The request parameter to use for filtering
+     */
+    public static function startsWith(string $attribute, ?string $filterBy = null): self
+    {
+        return new self($attribute, self::OPERATOR_STARTS_WITH, $filterBy);
+    }
+
+    /**
+     * Create a new ENDS WITH filter
+     *
+     * @param  string  $attribute  The database column to filter
+     * @param  string|null  $filterBy  The request parameter to use for filtering
+     */
+    public static function endsWith(string $attribute, ?string $filterBy = null): self
+    {
+        return new self($attribute, self::OPERATOR_ENDS_WITH, $filterBy);
+    }
+
 
     /**
      * Create a new relationship filter
@@ -718,7 +835,7 @@ class Filter
     /**
      * Check if using MySQL database
      */
-    protected function isUsingMySQL(): bool
+    public function isUsingMySQL(): bool
     {
         return $this->getDatabaseDriver() === 'mysql';
     }
@@ -726,7 +843,7 @@ class Filter
     /**
      * Check if using PostgreSQL database
      */
-    protected function isUsingPostgreSQL(): bool
+    public function isUsingPostgreSQL(): bool
     {
         return $this->getDatabaseDriver() === 'pgsql';
     }
@@ -734,7 +851,7 @@ class Filter
     /**
      * Check if using SQLite database
      */
-    protected function isUsingSQLite(): bool
+    public function isUsingSQLite(): bool
     {
         return $this->getDatabaseDriver() === 'sqlite';
     }

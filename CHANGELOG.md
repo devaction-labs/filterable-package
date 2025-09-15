@@ -2,6 +2,42 @@
 
 All notable changes to `filterable-package` will be documented in this file.
 
+## 1.1.0 - 2025-09-14
+
+### Added
+- **New Filter Types**: Added 7 new commonly used filter types
+  - `ilike()` - Case-insensitive LIKE with database-specific handling (PostgreSQL ILIKE, SQLite LIKE, MySQL LOWER())
+  - `notEquals()` - NOT EQUALS (!=) filter for excluding specific values
+  - `notIn()` - NOT IN filter for excluding multiple values from a list
+  - `notLike()` - NOT LIKE filter for excluding text patterns
+  - `isNull()` - IS NULL filter for checking null values
+  - `isNotNull()` - IS NOT NULL filter for checking non-null values
+  - `startsWith()` - STARTS WITH filter using LIKE with % suffix
+  - `endsWith()` - ENDS WITH filter using LIKE with % prefix
+
+### Enhanced
+- **Database Compatibility**: Improved database-specific handling for different SQL dialects
+  - PostgreSQL: Uses native ILIKE for case-insensitive searches
+  - SQLite: Falls back to LIKE for case-insensitive searches  
+  - MySQL: Uses LOWER() function for case-insensitive comparisons
+- **Filter Value Processing**: Enhanced `prepareValue()` method to handle new filter types
+  - Automatic pattern generation for STARTS_WITH and ENDS_WITH
+  - Support for comma-separated values in NOT_IN filters
+  - Pattern application for NOT_LIKE filters
+
+### Testing
+- **Comprehensive Test Coverage**: Added complete test suite for all new filter types
+  - Unit tests for each new filter type
+  - Database driver detection tests
+  - Operator validation tests
+  - Integration tests with Filterable trait
+
+### Performance
+- **Optimized Query Building**: Enhanced `applyFilterToBuilder()` method
+  - Direct method calls for null checks (whereNull/whereNotNull)
+  - Efficient handling of negation filters (whereNotIn)
+  - Streamlined LIKE pattern processing
+
 ## 1.0.22 - 2025-04-04
 
 ### Added

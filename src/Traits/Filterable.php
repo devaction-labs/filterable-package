@@ -385,6 +385,28 @@ trait Filterable
         $builder->whereBetween($attribute, $value);
     }
 
+
+    /**
+     * Apply an ILIKE filter to a builder with database-specific handling
+     */
+    private function applyIlikeFilter(Builder $builder, Filter $filter, string|Expression $attribute, mixed $value): void
+    {
+        if ($filter->isUsingPostgreSQL()) {
+            $builder->where($attribute, 'ILIKE', $value);
+
+            return;
+        }
+
+        if ($filter->isUsingSQLite()) {
+            $builder->where($attribute, 'LIKE', $value);
+
+            return;
+        }
+
+        // For MySQL and other databases, use LOWER() for case-insensitive comparison
+        $builder->whereRaw('LOWER(?) LIKE LOWER(?)', [$attribute, $value]);
+    }
+
     /**
      * Check if a filter has a JSON path
      */
@@ -402,6 +424,48 @@ trait Filterable
     {
         if ($filter->getOperator() === 'IN') {
             $builder->whereIn($attribute, $value);
+
+            return;
+        }
+
+        if ($filter->getOperator() === 'NOT IN') {
+            $builder->whereNotIn($attribute, $value);
+
+            return;
+        }
+
+        if ($filter->getOperator() === 'IS NULL') {
+            $builder->whereNull($attribute);
+
+            return;
+        }
+
+        if ($filter->getOperator() === 'IS NOT NULL') {
+            $builder->whereNotNull($attribute);
+
+            return;
+        }
+
+        if ($filter->getOperator() === 'STARTS_WITH') {
+            $builder->where($attribute, 'LIKE', $value);
+
+            return;
+        }
+
+        if ($filter->getOperator() === 'ENDS_WITH') {
+            $builder->where($attribute, 'LIKE', $value);
+
+            return;
+        }
+
+        if ($filter->getOperator() === 'NOT LIKE') {
+            $builder->where($attribute, 'NOT LIKE', $value);
+
+            return;
+        }
+
+        if ($filter->getOperator() === 'ILIKE') {
+            $this->applyIlikeFilter($builder, $filter, $attribute, $value);
 
             return;
         }
