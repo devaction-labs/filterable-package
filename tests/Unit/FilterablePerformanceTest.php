@@ -25,16 +25,12 @@ class FilterablePerformanceTest extends TestCase
 
         $this->model = new FilterableTestModel;
         $this->query = Mockery::mock(Builder::class);
+    }
 
-        $this->query->shouldReceive('with')->andReturnSelf();
-        $this->query->shouldReceive('where')->andReturnSelf();
-        $this->query->shouldReceive('whereIn')->andReturnSelf();
-        $this->query->shouldReceive('whereBetween')->andReturnSelf();
-        $this->query->shouldReceive('whereHas')->andReturnSelf();
-        $this->query->shouldReceive('whereAny')->andReturnSelf();
-        $this->query->shouldReceive('whereAll')->andReturnSelf();
-        $this->query->shouldReceive('whereNone')->andReturnSelf();
-        $this->query->shouldReceive('orderBy')->andReturnSelf();
+    protected function tearDown(): void
+    {
+        Mockery::close();
+        parent::tearDown();
     }
 
     public function test_relationship_load_optimization(): void
@@ -52,6 +48,11 @@ class FilterablePerformanceTest extends TestCase
             ->with(['user'])
             ->andReturnSelf();
 
+        // The trait groups filters by relationship, so 3 filters for 'user' = 1 whereHas call
+        $this->query->shouldReceive('whereHas')
+            ->once()
+            ->andReturnSelf();
+
         $result = $this->model->scopeFilterable($this->query, [$filter1, $filter2, $filter3]);
 
         $this->assertSame($this->query, $result);
@@ -64,8 +65,9 @@ class FilterablePerformanceTest extends TestCase
         $filter2 = $this->createDirectFilter('email', 'john@example.com');
 
         // Test that attribute resolution cache works
+        // We call scopeFilterable twice with 2 filters each = 4 where calls total
         $this->query->shouldReceive('where')
-            ->twice()
+            ->times(4)
             ->andReturnSelf();
 
         $result = $this->model->scopeFilterable($this->query, [$filter1, $filter2]);
@@ -111,6 +113,14 @@ class FilterablePerformanceTest extends TestCase
 
         $this->query->shouldReceive('whereHas')
             ->once()
+            ->with('user', Mockery::on(function ($callback): true {
+                $query = Mockery::mock(Builder::class);
+                $query->shouldReceive('whereAny')->once()->andReturnSelf();
+
+                $callback($query);
+
+                return true;
+            }))
             ->andReturnSelf();
 
         $result = $this->model->scopeFilterable($this->query, [$filter]);
@@ -121,15 +131,34 @@ class FilterablePerformanceTest extends TestCase
     public function test_performance_with_many_filters(): void
     {
         $filters = [];
+        $relationshipFiltersCount = 0;
+        $directFiltersCount = 0;
 
         // Create 50 filters to test performance with larger datasets
         for ($i = 0; $i < 50; $i++) {
             if ($i % 3 === 0) {
                 $filters[] = $this->createRelationshipFilter('user', "field{$i}", "value{$i}", $i % 2 === 0);
+                $relationshipFiltersCount++;
             } else {
                 $filters[] = $this->createDirectFilter("field{$i}", "value{$i}");
+                $directFiltersCount++;
             }
         }
+
+        // Set up expectations for the filters
+        $this->query->shouldReceive('where')
+            ->times($directFiltersCount)
+            ->andReturnSelf();
+
+        // All relationship filters use 'user', so 1 whereHas call
+        $this->query->shouldReceive('whereHas')
+            ->once()
+            ->andReturnSelf();
+
+        // Some relationship filters have shouldWith = true
+        $this->query->shouldReceive('with')
+            ->zeroOrMoreTimes()
+            ->andReturnSelf();
 
         $start = microtime(true);
 

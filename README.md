@@ -12,7 +12,8 @@ A Laravel package for filterable traits and classes. This package provides power
 ## Features
 
 - **Easy Integration:** Apply the `Filterable` trait to your Eloquent models.
-- **Flexible Filters:** Exact, like, in, between, greater than (gte, gt), less than (lte, lt), JSON, and relationship filters.
+- **Comprehensive Filters:** Support for 15+ filter types including exact, like, ilike, in, between, greater/less than, negation filters (notEquals, notIn, notLike), null checks (isNull, isNotNull), and text pattern filters (startsWith, endsWith).
+- **Database Compatibility:** Database-specific optimizations for PostgreSQL, MySQL, and SQLite.
 - **Dynamic Sorting:** Customize sorting behavior directly from requests.
 - **Relationship Filters:** Use advanced conditional logic like `whereAny`, `whereAll`, and `whereNone` for relational queries.
 - **JSON Support:** Directly filter JSON columns with dot-notation.
@@ -84,12 +85,43 @@ class ExpenseController extends Controller
 ## Available Filters
 
 ### Direct Filters
+
+#### Basic Comparison Filters
 - **Exact Match:** `Filter::exact('status', 'status')`
-- **LIKE Match:** `Filter::like('description', 'search')`
-- **IN Clause:** `Filter::in('category_id', 'categories')`
+- **Not Equals:** `Filter::notEquals('status', 'exclude_status')`
+- **Greater Than:** `Filter::gt('amount', 'min_amount')`
 - **Greater Than or Equal:** `Filter::gte('amount', 'min_amount')`
+- **Less Than:** `Filter::lt('amount', 'max_amount')`
 - **Less Than or Equal:** `Filter::lte('amount', 'max_amount')`
 - **Between:** `Filter::between('created_at', 'date_range')`
+
+#### Text Search Filters
+- **LIKE Match:** `Filter::like('description', 'search')`
+- **Case-Insensitive LIKE:** `Filter::ilike('description', 'search')` **(Database-specific)**
+- **NOT LIKE:** `Filter::notLike('description', 'exclude_text')`
+- **Starts With:** `Filter::startsWith('name', 'name_prefix')`
+- **Ends With:** `Filter::endsWith('email', 'email_suffix')`
+
+#### List and Array Filters  
+- **IN Clause:** `Filter::in('category_id', 'categories')`
+- **NOT IN Clause:** `Filter::notIn('status', 'exclude_statuses')`
+
+#### Null Value Filters
+- **Is Null:** `Filter::isNull('deleted_at', 'show_deleted')`
+- **Is Not Null:** `Filter::isNotNull('email_verified_at', 'verified_only')`
+
+#### Database-Specific Behavior
+The `ilike()` filter automatically adapts to your database:
+- **PostgreSQL:** Uses native `ILIKE` operator
+- **SQLite:** Falls back to `LIKE` (case-sensitive)  
+- **MySQL:** Uses `LOWER()` function for case-insensitive comparison
+
+```php
+// Example usage for case-insensitive search
+$filters = [
+    Filter::ilike('name', 'search'), // Works across all databases
+];
+```
 
 ### JSON Filters
 - **Exact Match:** `Filter::json('data', 'user.name', '=', 'user_name')`
