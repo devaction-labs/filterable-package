@@ -385,7 +385,6 @@ trait Filterable
         $builder->whereBetween($attribute, $value);
     }
 
-
     /**
      * Apply an ILIKE filter to a builder with database-specific handling
      */

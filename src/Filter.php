@@ -144,11 +144,11 @@ class Filter
             }
 
             if ($this->operator === self::OPERATOR_STARTS_WITH) {
-                return $value . '%';
+                return $value.'%';
             }
 
             if ($this->operator === self::OPERATOR_ENDS_WITH) {
-                return '%' . $value;
+                return '%'.$value;
             }
 
             if (($this->operator === self::OPERATOR_IN || $this->operator === self::OPERATOR_NOT_IN) && str_contains($value, ',')) {
@@ -425,7 +425,6 @@ class Filter
     {
         return new self($attribute, self::OPERATOR_ENDS_WITH, $filterBy);
     }
-
 
     /**
      * Create a new relationship filter

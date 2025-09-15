@@ -8,7 +8,6 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Request;
-use InvalidArgumentException;
 use Mockery;
 
 class FilterableTest extends Model
@@ -72,8 +71,6 @@ it('applies pagination using scopeCustomPaginate', function (): void {
     $model->scopeCustomPaginate($builder, false, $data);
 });
 
-
-
 it('applies ilike filter on PostgreSQL', function (): void {
     global $builder, $model;
 
@@ -130,7 +127,6 @@ it('applies ilike filter on MySQL using LOWER', function (): void {
     $filters = [$filter];
     $model->scopeFilterable($builder, $filters);
 });
-
 
 it('creates ilike filter with correct operator', function (): void {
     $filter = Filter::ilike('name');
