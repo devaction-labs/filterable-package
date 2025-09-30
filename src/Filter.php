@@ -2,7 +2,6 @@
 
 namespace DevactionLabs\FilterablePackage;
 
-use AllowDynamicProperties;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Support\Facades\Request;
@@ -15,7 +14,6 @@ use JsonException;
  * Provides flexible filtering functionality for Laravel models
  * with support for JSON fields, relationships, and various comparison operators.
  */
-#[AllowDynamicProperties]
 class Filter
 {
     /**
