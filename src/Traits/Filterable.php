@@ -247,6 +247,7 @@ trait Filterable
 
     /**
      * Apply filters with conditional logic
+     *
      * @throws JsonException
      */
     private function applyFiltersWithConditionalLogic(Builder $query, array $filters): void

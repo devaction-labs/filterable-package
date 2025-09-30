@@ -245,10 +245,44 @@ class Filter
     public function isValid(mixed $value): bool
     {
         if ($value === []) {
+            $this->logInvalidFilter('Empty array provided', $value);
+
             return false;
         }
 
-        return $value !== '' && $value !== null;
+        if ($value === '' || $value === null) {
+            $this->logInvalidFilter('Empty or null value provided', $value);
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Log invalid filter attempts for debugging
+     *
+     * @param  string  $reason  The reason the filter is invalid
+     * @param  mixed  $value  The invalid value
+     */
+    protected function logInvalidFilter(string $reason, mixed $value): void
+    {
+        // Only log if Laravel's logger is available and app is in debug mode
+        if (! function_exists('logger') || ! function_exists('config')) {
+            return;
+        }
+
+        if (! config('app.debug', false)) {
+            return;
+        }
+
+        logger()->debug('Invalid filter value detected', [
+            'attribute' => $this->attribute,
+            'filter_by' => $this->filterBy,
+            'operator' => $this->operator,
+            'reason' => $reason,
+            'value_type' => get_debug_type($value),
+        ]);
     }
 
     /**
@@ -896,17 +930,14 @@ class Filter
      */
     protected function getDatabaseDriver(): string
     {
-        // Use instance-specific driver if set (highest priority)
         if ($this->databaseDriver !== null) {
             return $this->databaseDriver;
         }
 
-        // Return cached global value if available
         if (self::$cachedDatabaseDriver !== null) {
             return self::$cachedDatabaseDriver;
         }
 
-        // Determine from configuration or environment and cache it
         $configResult = function_exists('config') ? config('database.default') : null;
         $envResult = getenv('DATABASE_DRIVER') ?: null;
         self::$cachedDatabaseDriver = $configResult ?? $envResult ?? 'mysql';
