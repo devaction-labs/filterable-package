@@ -177,7 +177,7 @@ jobs:
 
       - name: Create Release
         if: steps.check-tag.outputs.exists == 'false'
-        uses: softprops/action-gh-release@6cbd405c7a6625e96a96b4a1d1e1a6c3e9d8ef67 # v2.3.3
+        uses: softprops/action-gh-release@e7a8f85e1c67a31e6ed99a94b41bd0b71bbee6b8 # v2.0.9
         with:
           tag_name: v${{ steps.get-version.outputs.version }}
           name: Release v${{ steps.get-version.outputs.version }}
