@@ -403,7 +403,12 @@ trait Filterable
         }
 
         // For MySQL and other databases, use LOWER() for case-insensitive comparison
-        $builder->whereRaw('LOWER(?) LIKE LOWER(?)', [$attribute, $value]);
+        // Use DB::raw() with proper escaping to prevent SQL injection
+        if ($attribute instanceof Expression) {
+            $builder->whereRaw('LOWER('.$attribute->getValue().') LIKE LOWER(?)', [$value]);
+        } else {
+            $builder->whereRaw('LOWER('.DB::getTablePrefix().'`'.$attribute.'`) LIKE LOWER(?)', [$value]);
+        }
     }
 
     /**
