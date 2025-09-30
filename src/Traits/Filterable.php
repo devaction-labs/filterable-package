@@ -16,12 +16,16 @@ trait Filterable
 {
     protected string $defaultSort = '';
 
+    /** @var array<int, string> */
     protected array $allowedSorts = [];
 
+    /** @var array<string, string> */
     protected array $filterMap = [];
 
+    /** @var array<string, bool> */
     private array $validationCache = [];
 
+    /** @var array<string, string> */
     private array $attributeCache = [];
 
     public function scopeCustomPaginate(Builder $builder, bool $useSimplePaginate = false, ?array $data = null): Paginator|LengthAwarePaginator
@@ -54,6 +58,9 @@ trait Filterable
             : $builder->paginate((int) $perPage)->appends($data);
     }
 
+    /**
+     * @throws JsonException
+     */
     public function scopeFiltrable(Builder $builder, array $filters): Builder
     {
         return $this->scopeFilterable($builder, $filters);
@@ -78,6 +85,9 @@ trait Filterable
 
     /**
      * Categorize filters into relationship and direct filters
+     *
+     * @param  array<int, Filter>  $filters
+     * @return array{0: array<int, Filter>, 1: array<int, Filter>, 2: array<string, bool>}
      *
      * @throws JsonException
      */
@@ -139,13 +149,14 @@ trait Filterable
         $relationshipFilters[] = $filter;
 
         if ($filter->shouldWith()) {
-            // Usar array associativo como um "Set" (conjunto) para evitar duplicatas
             $relationshipsToLoad[$relationship] = true;
         }
     }
 
     /**
      * Apply direct filters to the builder
+     *
+     * @param  array<int, Filter>  $directFilters
      */
     private function applyDirectFilters(Builder $builder, array $directFilters): void
     {
@@ -169,6 +180,8 @@ trait Filterable
 
     /**
      * Apply relationship filters to the builder
+     *
+     * @param  array<int, Filter>  $relationshipFilters
      */
     private function applyRelationshipFilters(Builder $builder, array $relationshipFilters): void
     {
@@ -234,6 +247,7 @@ trait Filterable
 
     /**
      * Apply filters with conditional logic
+     * @throws JsonException
      */
     private function applyFiltersWithConditionalLogic(Builder $query, array $filters): void
     {
@@ -402,12 +416,9 @@ trait Filterable
             return;
         }
 
-        // For MySQL and other databases, use LOWER() for case-insensitive comparison
-        // Using whereRaw with bindings to prevent SQL injection
         if ($attribute instanceof Expression) {
             $builder->whereRaw('LOWER('.$attribute->getValue().') LIKE LOWER(?)', [$value]);
         } else {
-            // Sanitize column name: only allow alphanumeric, underscore, and dot (for table.column)
             $sanitizedAttribute = preg_replace('/[^a-zA-Z0-9_.]/', '', $attribute);
             $builder->whereRaw('LOWER(`'.$sanitizedAttribute.'`) LIKE LOWER(?)', [$value]);
         }
