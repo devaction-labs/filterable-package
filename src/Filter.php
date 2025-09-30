@@ -2,7 +2,6 @@
 
 namespace DevactionLabs\FilterablePackage;
 
-use AllowDynamicProperties;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Support\Facades\Request;
@@ -15,7 +14,6 @@ use JsonException;
  * Provides flexible filtering functionality for Laravel models
  * with support for JSON fields, relationships, and various comparison operators.
  */
-#[AllowDynamicProperties]
 class Filter
 {
     /**
@@ -113,13 +111,39 @@ class Filter
             return;
         }
 
-        $value = $filters[$this->filterBy];
+        $value = $this->sanitizeInput($filters[$this->filterBy]);
         $processedValue = $this->prepareValue($value);
 
         if (is_string($processedValue) || is_int($processedValue) || is_array($processedValue) ||
             $processedValue instanceof Carbon || $processedValue === null) {
             $this->value = $processedValue;
         }
+    }
+
+    /**
+     * Sanitize input value to prevent malicious data
+     *
+     * @param  mixed  $value  The value to sanitize
+     * @return mixed The sanitized value
+     */
+    protected function sanitizeInput(mixed $value): mixed
+    {
+        if (is_string($value)) {
+            $sanitized = str_replace("\0", '', $value);
+            $sanitized = (string) preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $sanitized);
+
+            if (strlen($sanitized) > 1000) {
+                $sanitized = substr($sanitized, 0, 1000);
+            }
+
+            return trim($sanitized);
+        }
+
+        if (is_array($value)) {
+            return array_map(fn ($item): mixed => $this->sanitizeInput($item), $value);
+        }
+
+        return $value;
     }
 
     /**
@@ -221,10 +245,44 @@ class Filter
     public function isValid(mixed $value): bool
     {
         if ($value === []) {
+            $this->logInvalidFilter('Empty array provided', $value);
+
             return false;
         }
 
-        return $value !== '' && $value !== null;
+        if ($value === '' || $value === null) {
+            $this->logInvalidFilter('Empty or null value provided', $value);
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Log invalid filter attempts for debugging
+     *
+     * @param  string  $reason  The reason the filter is invalid
+     * @param  mixed  $value  The invalid value
+     */
+    protected function logInvalidFilter(string $reason, mixed $value): void
+    {
+        // Only log if Laravel's logger is available and app is in debug mode
+        if (! function_exists('logger') || ! function_exists('config')) {
+            return;
+        }
+
+        if (! config('app.debug', false)) {
+            return;
+        }
+
+        logger()->debug('Invalid filter value detected', [
+            'attribute' => $this->attribute,
+            'filter_by' => $this->filterBy,
+            'operator' => $this->operator,
+            'reason' => $reason,
+            'value_type' => get_debug_type($value),
+        ]);
     }
 
     /**
@@ -868,17 +926,21 @@ class Filter
     }
 
     /**
-     * Get the current database driver
+     * Get the current database driver with optimized caching
      */
     protected function getDatabaseDriver(): string
     {
         if ($this->databaseDriver !== null) {
-            self::$cachedDatabaseDriver = $this->databaseDriver;
-        } elseif (self::$cachedDatabaseDriver === null) {
-            $configResult = function_exists('config') ? config('database.default') : null;
-            $envResult = getenv('DATABASE_DRIVER') ?: null;
-            self::$cachedDatabaseDriver = $configResult ?? $envResult ?? 'mysql';
+            return $this->databaseDriver;
         }
+
+        if (self::$cachedDatabaseDriver !== null) {
+            return self::$cachedDatabaseDriver;
+        }
+
+        $configResult = function_exists('config') ? config('database.default') : null;
+        $envResult = getenv('DATABASE_DRIVER') ?: null;
+        self::$cachedDatabaseDriver = $configResult ?? $envResult ?? 'mysql';
 
         return self::$cachedDatabaseDriver;
     }

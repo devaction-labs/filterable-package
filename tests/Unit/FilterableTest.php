@@ -117,7 +117,7 @@ it('applies ilike filter on MySQL using LOWER', function (): void {
 
     $builder->shouldReceive('whereRaw')
         ->once()
-        ->with('LOWER(?) LIKE LOWER(?)', ['name', '%john%'])
+        ->with('LOWER(`name`) LIKE LOWER(?)', ['%john%'])
         ->andReturnSelf();
 
     $builder->shouldReceive('with')
