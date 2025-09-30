@@ -113,13 +113,39 @@ class Filter
             return;
         }
 
-        $value = $filters[$this->filterBy];
+        $value = $this->sanitizeInput($filters[$this->filterBy]);
         $processedValue = $this->prepareValue($value);
 
         if (is_string($processedValue) || is_int($processedValue) || is_array($processedValue) ||
             $processedValue instanceof Carbon || $processedValue === null) {
             $this->value = $processedValue;
         }
+    }
+
+    /**
+     * Sanitize input value to prevent malicious data
+     *
+     * @param  mixed  $value  The value to sanitize
+     * @return mixed The sanitized value
+     */
+    protected function sanitizeInput(mixed $value): mixed
+    {
+        if (is_string($value)) {
+            $sanitized = str_replace("\0", '', $value);
+            $sanitized = (string) preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $sanitized);
+
+            if (strlen($sanitized) > 1000) {
+                $sanitized = substr($sanitized, 0, 1000);
+            }
+
+            return trim($sanitized);
+        }
+
+        if (is_array($value)) {
+            return array_map(fn ($item): mixed => $this->sanitizeInput($item), $value);
+        }
+
+        return $value;
     }
 
     /**

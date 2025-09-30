@@ -403,11 +403,13 @@ trait Filterable
         }
 
         // For MySQL and other databases, use LOWER() for case-insensitive comparison
-        // Use DB::raw() with proper escaping to prevent SQL injection
+        // Using whereRaw with bindings to prevent SQL injection
         if ($attribute instanceof Expression) {
             $builder->whereRaw('LOWER('.$attribute->getValue().') LIKE LOWER(?)', [$value]);
         } else {
-            $builder->whereRaw('LOWER('.DB::getTablePrefix().'`'.$attribute.'`) LIKE LOWER(?)', [$value]);
+            // Sanitize column name: only allow alphanumeric, underscore, and dot (for table.column)
+            $sanitizedAttribute = preg_replace('/[^a-zA-Z0-9_.]/', '', $attribute);
+            $builder->whereRaw('LOWER(`'.$sanitizedAttribute.'`) LIKE LOWER(?)', [$value]);
         }
     }
 
