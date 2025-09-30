@@ -892,17 +892,24 @@ class Filter
     }
 
     /**
-     * Get the current database driver
+     * Get the current database driver with optimized caching
      */
     protected function getDatabaseDriver(): string
     {
+        // Use instance-specific driver if set (highest priority)
         if ($this->databaseDriver !== null) {
-            self::$cachedDatabaseDriver = $this->databaseDriver;
-        } elseif (self::$cachedDatabaseDriver === null) {
-            $configResult = function_exists('config') ? config('database.default') : null;
-            $envResult = getenv('DATABASE_DRIVER') ?: null;
-            self::$cachedDatabaseDriver = $configResult ?? $envResult ?? 'mysql';
+            return $this->databaseDriver;
         }
+
+        // Return cached global value if available
+        if (self::$cachedDatabaseDriver !== null) {
+            return self::$cachedDatabaseDriver;
+        }
+
+        // Determine from configuration or environment and cache it
+        $configResult = function_exists('config') ? config('database.default') : null;
+        $envResult = getenv('DATABASE_DRIVER') ?: null;
+        self::$cachedDatabaseDriver = $configResult ?? $envResult ?? 'mysql';
 
         return self::$cachedDatabaseDriver;
     }
