@@ -247,12 +247,7 @@ class Filter
         if ($value === []) {
             return false;
         }
-
-        if ($value === '' || $value === null) {
-            return false;
-        }
-
-        return true;
+        return $value !== '' && $value !== null;
     }
 
     /**
