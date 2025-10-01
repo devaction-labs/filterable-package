@@ -411,7 +411,7 @@ If you discover any security related issues, please email alex@devaction.com.br 
 ## Credits
 
 - [DevAction Labs](https://github.com/devaction-labs)
-- [All Contributors](../../contributors)
+- [Alex Nogueira](https://github.com/alexnogueirasilva)
 
 ## License
 
