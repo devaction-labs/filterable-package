@@ -32,7 +32,7 @@ trait Filterable
     /**
      * Custom pagination with support for paginate, simplePaginate, and cursorPaginate
      *
-     * @param  string  $type  Type of pagination: 'paginate', 'simple', or 'cursor'
+     * @param  string  $paginationType  Type of pagination: 'paginate', 'simple', or 'cursor'
      * @param  int|null  $perPage  Items per page (default: 15)
      * @param  array|null  $data  Additional data to append to pagination links
      *
@@ -40,7 +40,7 @@ trait Filterable
      */
     public function scopeCustomPaginate(
         Builder $builder,
-        string $type = 'paginate',
+        string $paginationType = 'paginate',
         ?int $perPage = null,
         ?array $data = null
     ): Paginator|LengthAwarePaginator|CursorPaginator {
@@ -67,11 +67,11 @@ trait Filterable
             $builder->orderBy($orderBy, $order);
         }
 
-        return match ($type) {
+        return match ($paginationType) {
             'simple' => $builder->simplePaginate($perPage)->appends($data),
             'cursor' => $builder->cursorPaginate($perPage)->appends($data),
             'paginate' => $builder->paginate($perPage)->appends($data),
-            default => throw new InvalidArgumentException("Invalid pagination type [$type]. Use 'paginate', 'simple', or 'cursor'."),
+            default => throw new InvalidArgumentException("Invalid pagination type [$paginationType]. Use 'paginate', 'simple', or 'cursor'."),
         };
     }
 
