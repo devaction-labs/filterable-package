@@ -255,7 +255,6 @@ class Filter
         return true;
     }
 
-
     /**
      * Check if a string is empty, null, or "0"
      *
