@@ -4,6 +4,7 @@ namespace DevactionLabs\FilterablePackage\Traits;
 
 use Carbon\Carbon;
 use DevactionLabs\FilterablePackage\Filter;
+use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Contracts\Pagination\Paginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -28,11 +29,24 @@ trait Filterable
     /** @var array<string, string> */
     private array $attributeCache = [];
 
-    public function scopeCustomPaginate(Builder $builder, bool $useSimplePaginate = false, ?array $data = null): Paginator|LengthAwarePaginator
-    {
+    /**
+     * Custom pagination with support for paginate, simplePaginate, and cursorPaginate
+     *
+     * @param  string  $type  Type of pagination: 'paginate', 'simple', or 'cursor'
+     * @param  int|null  $perPage  Items per page (default: 15)
+     * @param  array|null  $data  Additional data to append to pagination links
+     *
+     * @throws InvalidArgumentException
+     */
+    public function scopeCustomPaginate(
+        Builder $builder,
+        string $type = 'paginate',
+        ?int $perPage = null,
+        ?array $data = null
+    ): Paginator|LengthAwarePaginator|CursorPaginator {
         $data ??= request()->only('per_page', 'sort');
         $order = 'ASC';
-        $perPage = $data['per_page'] ?? 15;
+        $perPage ??= (int) ($data['per_page'] ?? 15);
 
         if ($this->defaultSort && empty($data['sort'])) {
             $data['sort'] = $this->defaultSort;
@@ -53,9 +67,12 @@ trait Filterable
             $builder->orderBy($orderBy, $order);
         }
 
-        return $useSimplePaginate
-            ? $builder->simplePaginate((int) $perPage)->appends($data)
-            : $builder->paginate((int) $perPage)->appends($data);
+        return match ($type) {
+            'simple' => $builder->simplePaginate($perPage)->appends($data),
+            'cursor' => $builder->cursorPaginate($perPage)->appends($data),
+            'paginate' => $builder->paginate($perPage)->appends($data),
+            default => throw new InvalidArgumentException("Invalid pagination type [$type]. Use 'paginate', 'simple', or 'cursor'."),
+        };
     }
 
     /**
@@ -200,15 +217,17 @@ trait Filterable
                 $builder->whereHas($relationship, function ($query) use ($attribute, $value): void {
                     $query->where($attribute, $value);
                 });
-            } else {
-                $builder->whereHas($relationship, function ($query) use ($filters): void {
-                    $hasConditionalLogic = $this->hasConditionalLogic($filters);
 
-                    $hasConditionalLogic
-                        ? $this->applyFiltersWithConditionalLogic($query, $filters)
-                        : $this->applyFiltersDirectly($query, $filters);
-                });
+                continue;
             }
+
+            $builder->whereHas($relationship, function ($query) use ($filters): void {
+                $hasConditionalLogic = $this->hasConditionalLogic($filters);
+
+                $hasConditionalLogic
+                    ? $this->applyFiltersWithConditionalLogic($query, $filters)
+                    : $this->applyFiltersDirectly($query, $filters);
+            });
         }
     }
 
@@ -263,21 +282,16 @@ trait Filterable
      */
     private function collectConditions(array $filters): array
     {
-        $estimatedSize = 0;
-        foreach ($filters as $filter) {
-            if ($this->hasFilterConditionalLogic($filter)) {
-                $estimatedSize += count($filter->getConditionalConditions());
-            } else {
-                $estimatedSize++;
-            }
-        }
-
         $conditions = [];
 
         foreach ($filters as $filter) {
-            $this->hasFilterConditionalLogic($filter)
-                ? $this->addConditionalConditions($conditions, $filter->getConditionalConditions())
-                : $this->addStandardCondition($conditions, $filter);
+            if ($this->hasFilterConditionalLogic($filter)) {
+                $this->addConditionalConditions($conditions, $filter->getConditionalConditions());
+
+                continue;
+            }
+
+            $this->addStandardCondition($conditions, $filter);
         }
 
         return $conditions;
@@ -419,10 +433,12 @@ trait Filterable
 
         if ($attribute instanceof Expression) {
             $builder->whereRaw('LOWER('.$attribute->getValue().') LIKE LOWER(?)', [$value]);
-        } else {
-            $sanitizedAttribute = preg_replace('/[^a-zA-Z0-9_.]/', '', $attribute);
-            $builder->whereRaw('LOWER(`'.$sanitizedAttribute.'`) LIKE LOWER(?)', [$value]);
+
+            return;
         }
+
+        $sanitizedAttribute = preg_replace('/[^a-zA-Z0-9_.]/', '', $attribute);
+        $builder->whereRaw('LOWER(`'.$sanitizedAttribute.'`) LIKE LOWER(?)', [$value]);
     }
 
     /**

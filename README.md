@@ -75,7 +75,7 @@ class ExpenseController extends Controller
                     ['email', '=', 'john@example.com'],
                 ])->with(),
             ])
-            ->customPaginate(false, ['per_page' => 10, 'sort' => '-created_at']);
+            ->customPaginate('paginate', 10, ['per_page' => 10, 'sort' => '-created_at']);
 
         return response()->json($expenses);
     }
@@ -146,15 +146,54 @@ $filters = [
 
 ## Customizing Pagination and Sorting
 
-Use the provided methods to paginate and sort easily:
+The package provides flexible pagination options through the `customPaginate` method, supporting three pagination types:
+
+### Standard Pagination (with total count)
 
 ```php
 $results = Expense::query()
     ->filtrable([...])
-    ->customPaginate(false, ['per_page' => 10, 'sort' => '-created_at']);
+    ->customPaginate('paginate', 15);
+
+// Returns: total, last_page, current_page, per_page, etc.
 ```
 
-- `-` (minus) prefix indicates descending sorting (e.g., `-amount`).
+### Simple Pagination (without total count - better performance)
+
+```php
+$results = Expense::query()
+    ->filtrable([...])
+    ->customPaginate('simple', 15);
+
+// Returns: current_page, per_page, next_page_url, prev_page_url (no total)
+```
+
+### Cursor Pagination (most performant for large datasets)
+
+```php
+$results = Expense::query()
+    ->filtrable([...])
+    ->customPaginate('cursor', 15);
+
+// Returns: cursor-based navigation (ideal for infinite scroll)
+```
+
+### Custom Parameters
+
+You can pass custom data to append to pagination links:
+
+```php
+$results = Expense::query()
+    ->filtrable([...])
+    ->customPaginate('paginate', 15, [
+        'per_page' => 15,
+        'sort' => '-created_at'
+    ]);
+```
+
+**Sorting:**
+- `-` (minus) prefix indicates descending sorting (e.g., `-amount`)
+- Ascending sort uses the field name directly (e.g., `amount`)
 
 ### Defining Default Sorting and Allowed Sorts in Model:
 
@@ -338,7 +377,7 @@ class ProductController extends Controller
                     ->setValue(auth()->id()),
             ])
             // Apply pagination with custom parameters
-            ->customPaginate(false, [
+            ->customPaginate('paginate', $request->input('per_page', 15), [
                 'per_page' => $request->input('per_page', 15),
                 'sort' => $request->input('sort', '-created_at'),
             ]);

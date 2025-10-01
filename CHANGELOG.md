@@ -2,6 +2,24 @@
 
 All notable changes to `filterable-package` will be documented in this file.
 
+## 1.1.3 - 2025-09-30
+
+### Added
+- **Cursor Pagination Support**: Added support for cursor-based pagination for improved performance on large datasets
+  - `customPaginate()` now accepts three pagination types: `'paginate'`, `'simple'`, and `'cursor'`
+  - Cursor pagination ideal for infinite scroll implementations
+  - Simple pagination option for better performance when total count is not needed
+
+### Changed
+- **BREAKING**: `customPaginate()` method signature updated from `customPaginate(bool $useSimplePaginate, ?array $data)` to `customPaginate(string $type = 'paginate', ?int $perPage = null, ?array $data = null)`
+  - Migration: Change `->customPaginate(false, $data)` to `->customPaginate('paginate', null, $data)`
+  - Migration: Change `->customPaginate(true, $data)` to `->customPaginate('simple', null, $data)`
+- Code refactoring: Removed all `else` statements in favor of early returns and guard clauses for improved readability
+- Improved README documentation with comprehensive pagination examples
+
+### Fixed
+- Optimized `collectConditions()` method by removing unnecessary size estimation loop
+
 ## 1.1.0 - 2025-09-14
 
 ### Added
@@ -70,7 +88,7 @@ All notable changes to `filterable-package` will be documented in this file.
        - Verificamos tempo de execução para conjuntos grandes de filtros
 
 ### Fixed
-- N/A 
+- N/A
 
 ## [Unreleased]
 
@@ -82,7 +100,6 @@ All notable changes to `filterable-package` will be documented in this file.
 - Database-specific JSON field handling optimizations
 
 ### Changed
-- Improved README documentation with comprehensive examples
 - Optimization for relationship loading to avoid duplications
 
 ### Fixed

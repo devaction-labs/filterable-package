@@ -4,10 +4,13 @@ namespace Tests\Unit;
 
 use DevactionLabs\FilterablePackage\Filter;
 use DevactionLabs\FilterablePackage\Traits\Filterable;
+use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Contracts\Pagination\Paginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Request;
+use InvalidArgumentException;
 use Mockery;
 
 class FilterableTest extends Model
@@ -68,8 +71,60 @@ it('applies pagination using scopeCustomPaginate', function (): void {
         ->andReturn($paginator);
 
     $data = ['per_page' => 10, 'sort' => '-created_at'];
-    $model->scopeCustomPaginate($builder, false, $data);
+    $model->scopeCustomPaginate($builder, 'paginate', 10, $data);
 });
+
+it('applies simple pagination using customPaginate', function (): void {
+    global $builder, $model;
+
+    $builder->shouldReceive('orderBy')
+        ->once()
+        ->with('name', 'ASC')
+        ->andReturnSelf();
+
+    $paginator = Mockery::mock(Paginator::class);
+    $paginator->shouldReceive('appends')
+        ->once()
+        ->with(['per_page' => 15, 'sort' => 'name'])
+        ->andReturnSelf();
+
+    $builder->shouldReceive('simplePaginate')
+        ->once()
+        ->with(15)
+        ->andReturn($paginator);
+
+    $data = ['per_page' => 15, 'sort' => 'name'];
+    $model->scopeCustomPaginate($builder, 'simple', 15, $data);
+});
+
+it('applies cursor pagination using customPaginate', function (): void {
+    global $builder, $model;
+
+    $builder->shouldReceive('orderBy')
+        ->once()
+        ->with('id', 'DESC')
+        ->andReturnSelf();
+
+    $paginator = Mockery::mock(CursorPaginator::class);
+    $paginator->shouldReceive('appends')
+        ->once()
+        ->with(['per_page' => 20, 'sort' => '-id'])
+        ->andReturnSelf();
+
+    $builder->shouldReceive('cursorPaginate')
+        ->once()
+        ->with(20)
+        ->andReturn($paginator);
+
+    $data = ['per_page' => 20, 'sort' => '-id'];
+    $model->scopeCustomPaginate($builder, 'cursor', 20, $data);
+});
+
+it('throws exception for invalid pagination type', function (): void {
+    global $builder, $model;
+
+    $model->scopeCustomPaginate($builder, 'invalid', 15, ['per_page' => 15]);
+})->throws(InvalidArgumentException::class, "Invalid pagination type [invalid]. Use 'paginate', 'simple', or 'cursor'.");
 
 it('applies ilike filter on PostgreSQL', function (): void {
     global $builder, $model;
