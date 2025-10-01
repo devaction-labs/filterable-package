@@ -2,6 +2,15 @@
 
 All notable changes to `filterable-package` will be documented in this file.
 
+## 1.1.4 - 2025-09-30
+
+### Changed
+- **Parameter Rename**: Renamed `$type` parameter to `$paginationType` in `customPaginate()` method for better IDE autocomplete clarity
+- Removed unnecessary debug logging for empty filter values (filters with null/empty values are expected behavior and should not pollute logs)
+
+### Fixed
+- Debug logs no longer spam when filters are not provided in requests (empty filters are silently ignored as intended)
+
 ## 1.1.3 - 2025-09-30
 
 ### Added
@@ -11,7 +20,7 @@ All notable changes to `filterable-package` will be documented in this file.
   - Simple pagination option for better performance when total count is not needed
 
 ### Changed
-- **BREAKING**: `customPaginate()` method signature updated from `customPaginate(bool $useSimplePaginate, ?array $data)` to `customPaginate(string $type = 'paginate', ?int $perPage = null, ?array $data = null)`
+- **BREAKING**: `customPaginate()` method signature updated from `customPaginate(bool $useSimplePaginate, ?array $data)` to `customPaginate(string $paginationType = 'paginate', ?int $perPage = null, ?array $data = null)`
   - Migration: Change `->customPaginate(false, $data)` to `->customPaginate('paginate', null, $data)`
   - Migration: Change `->customPaginate(true, $data)` to `->customPaginate('simple', null, $data)`
 - Code refactoring: Removed all `else` statements in favor of early returns and guard clauses for improved readability
