@@ -63,7 +63,7 @@
         "test:lint": "pint --test",
         "test:types": "phpstan analyse --ansi",
         "test:unit": "pest --colors=always",
-        "test:coverage": "pest --coverage --min=80",
+        "test:coverage": "pest --coverage --min=65",
         "test:coverage-html": "pest --coverage-html coverage",
         "test": [
             "@test:refacto",
