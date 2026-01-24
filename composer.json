@@ -19,7 +19,7 @@
         }
     ],
     "require": {
-        "php": "^8.2|^8.3|^8.4|^8.5",
+        "php": "^8.3|^8.4|^8.5",
         "illuminate/cache": "^11|^12",
         "illuminate/database": "^11|^12",
         "illuminate/http": "^11|^12",
