@@ -3,6 +3,7 @@
 namespace DevactionLabs\FilterablePackage;
 
 use Carbon\Carbon;
+use DevactionLabs\FilterablePackage\Enums\FilterOperator;
 use Exception;
 use Illuminate\Support\Facades\Request;
 use InvalidArgumentException;
@@ -18,37 +19,54 @@ class Filter
 {
     /**
      * SQL Comparison operators available for filtering
+     *
+     * @deprecated Use FilterOperator enum instead
      */
     public const OPERATOR_EQUALS = '=';
 
+    /** @deprecated Use FilterOperator enum instead */
     public const OPERATOR_LIKE = 'LIKE';
 
+    /** @deprecated Use FilterOperator enum instead */
     public const OPERATOR_IN = 'IN';
 
+    /** @deprecated Use FilterOperator enum instead */
     public const OPERATOR_GT = '>';
 
+    /** @deprecated Use FilterOperator enum instead */
     public const OPERATOR_GTE = '>=';
 
+    /** @deprecated Use FilterOperator enum instead */
     public const OPERATOR_LT = '<';
 
+    /** @deprecated Use FilterOperator enum instead */
     public const OPERATOR_LTE = '<=';
 
+    /** @deprecated Use FilterOperator enum instead */
     public const OPERATOR_BETWEEN = 'BETWEEN';
 
+    /** @deprecated Use FilterOperator enum instead */
     public const OPERATOR_ILIKE = 'ILIKE';
 
+    /** @deprecated Use FilterOperator enum instead */
     public const OPERATOR_NOT_EQUALS = '!=';
 
+    /** @deprecated Use FilterOperator enum instead */
     public const OPERATOR_NOT_IN = 'NOT IN';
 
+    /** @deprecated Use FilterOperator enum instead */
     public const OPERATOR_NOT_LIKE = 'NOT LIKE';
 
+    /** @deprecated Use FilterOperator enum instead */
     public const OPERATOR_IS_NULL = 'IS NULL';
 
+    /** @deprecated Use FilterOperator enum instead */
     public const OPERATOR_IS_NOT_NULL = 'IS NOT NULL';
 
+    /** @deprecated Use FilterOperator enum instead */
     public const OPERATOR_STARTS_WITH = 'STARTS_WITH';
 
+    /** @deprecated Use FilterOperator enum instead */
     public const OPERATOR_ENDS_WITH = 'ENDS_WITH';
 
     protected string $attribute;
@@ -114,8 +132,10 @@ class Filter
         $value = $this->sanitizeInput($filters[$this->filterBy]);
         $processedValue = $this->prepareValue($value);
 
-        if (is_string($processedValue) || is_int($processedValue) || is_array($processedValue) ||
-            $processedValue instanceof Carbon || $processedValue === null) {
+        if (is_string($processedValue) || is_int($processedValue) || $processedValue instanceof Carbon || $processedValue === null) {
+            $this->value = $processedValue;
+        } elseif (is_array($processedValue)) {
+            /** @var array<int|string> $processedValue */
             $this->value = $processedValue;
         }
     }
@@ -124,9 +144,9 @@ class Filter
      * Sanitize input value to prevent malicious data
      *
      * @param  mixed  $value  The value to sanitize
-     * @return mixed The sanitized value
+     * @return string|array<int|string>|int|null The sanitized value
      */
-    protected function sanitizeInput(mixed $value): mixed
+    protected function sanitizeInput(mixed $value): string|array|int|null
     {
         if (is_string($value)) {
             $sanitized = str_replace("\0", '', $value);
@@ -140,10 +160,11 @@ class Filter
         }
 
         if (is_array($value)) {
-            return array_map(fn ($item): mixed => $this->sanitizeInput($item), $value);
+            /** @var array<int|string> */
+            return array_map($this->sanitizeInput(...), $value);
         }
 
-        return $value;
+        return is_int($value) ? $value : null;
     }
 
     /**
@@ -205,7 +226,7 @@ class Filter
             $current = $decoded;
 
             foreach ($keys as $key) {
-                if (! isset($current[$key])) {
+                if (! is_array($current) || ! isset($current[$key])) {
                     return $value;
                 }
                 $current = $current[$key];
@@ -247,6 +268,7 @@ class Filter
         if ($value === []) {
             return false;
         }
+
         return $value !== '' && $value !== null;
     }
 
@@ -258,7 +280,7 @@ class Filter
      */
     protected function isEmptyOrZero(?string $value): bool
     {
-        return $value === null || $value === '' || $value === '0';
+        return in_array($value, [null, '', '0'], true);
     }
 
     /**
@@ -560,7 +582,12 @@ class Filter
             $jsonValue = $this->extractJsonValue($this->value);
 
             // Ensure we're returning a compatible type
-            if (is_string($jsonValue) || is_int($jsonValue) || is_array($jsonValue) || $jsonValue instanceof Carbon || $jsonValue === null) {
+            if (is_string($jsonValue) || is_int($jsonValue) || $jsonValue instanceof Carbon || $jsonValue === null) {
+                return $jsonValue;
+            }
+
+            if (is_array($jsonValue)) {
+                /** @phpstan-var array<int|string> $jsonValue */
                 return $jsonValue;
             }
 
@@ -847,6 +874,14 @@ class Filter
     }
 
     /**
+     * Get the filter operator as an enum
+     */
+    public function getOperatorEnum(): FilterOperator
+    {
+        return FilterOperator::from($this->operator);
+    }
+
+    /**
      * Check if this filter is for a date field
      */
     public function isDate(): bool
@@ -899,13 +934,12 @@ class Filter
             return $this->databaseDriver;
         }
 
-        if (self::$cachedDatabaseDriver !== null) {
-            return self::$cachedDatabaseDriver;
+        if (self::$cachedDatabaseDriver === null) {
+            $configResult = function_exists('config') ? config('database.default') : null;
+            $envResult = getenv('DATABASE_DRIVER') ?: null;
+            $driver = $configResult ?? $envResult ?? 'mysql';
+            self::$cachedDatabaseDriver = is_string($driver) ? $driver : 'mysql';
         }
-
-        $configResult = function_exists('config') ? config('database.default') : null;
-        $envResult = getenv('DATABASE_DRIVER') ?: null;
-        self::$cachedDatabaseDriver = $configResult ?? $envResult ?? 'mysql';
 
         return self::$cachedDatabaseDriver;
     }

@@ -28,7 +28,6 @@ it('validates date values correctly', function (): void {
     // Test the convertToCarbon method directly using reflection
     $reflector = new ReflectionClass($filter);
     $method = $reflector->getMethod('convertToCarbon');
-    $method->setAccessible(true);
 
     // Valid date
     expect($method->invokeArgs($filter, ['2023-01-01']))->toBeInstanceOf(Carbon::class);
@@ -63,10 +62,6 @@ it('handles database drivers correctly', function (): void {
     $mysqlMethod = $reflector->getMethod('isUsingMySQL');
     $sqliteMethod = $reflector->getMethod('isUsingSQLite');
     $pgsqlMethod = $reflector->getMethod('isUsingPostgreSQL');
-
-    $mysqlMethod->setAccessible(true);
-    $sqliteMethod->setAccessible(true);
-    $pgsqlMethod->setAccessible(true);
 
     // Test MySQL
     $filter->setDatabaseDriver('mysql');
@@ -113,7 +108,6 @@ it('uses match expressions for value transformation', function (): void {
     // Extract a value using reflection to directly test applyOperatorToValue
     $reflector = new ReflectionClass($filter);
     $method = $reflector->getMethod('applyOperatorToValue');
-    $method->setAccessible(true);
 
     // Test EQUALS (default)
     expect($method->invokeArgs($filter, ['active']))->toBe('active');

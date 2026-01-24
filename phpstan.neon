@@ -6,3 +6,7 @@ parameters:
     level: 9
 
     treatPhpDocTypesAsCertain: false
+
+    # Ignore trait.unused errors since traits are used by external code
+    ignoreErrors:
+        - identifier: trait.unused

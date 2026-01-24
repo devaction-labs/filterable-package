@@ -15,7 +15,7 @@ class FilterableTestModel
 
 class FilterablePerformanceTest extends TestCase
 {
-    private \Tests\Unit\FilterableTestModel $model;
+    private FilterableTestModel $model;
 
     private $query;
 

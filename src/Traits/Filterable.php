@@ -3,6 +3,7 @@
 namespace DevactionLabs\FilterablePackage\Traits;
 
 use Carbon\Carbon;
+use DevactionLabs\FilterablePackage\Enums\PaginationType;
 use DevactionLabs\FilterablePackage\Filter;
 use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -12,6 +13,7 @@ use Illuminate\Database\Query\Expression;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use JsonException;
+use ValueError;
 
 trait Filterable
 {
@@ -32,7 +34,7 @@ trait Filterable
     /**
      * Custom pagination with support for paginate, simplePaginate, and cursorPaginate
      *
-     * @param  string  $paginationType  Type of pagination: 'paginate', 'simple', or 'cursor'
+     * @param  string|PaginationType  $paginationType  Type of pagination: 'paginate', 'simple', 'cursor' or PaginationType enum
      * @param  int|null  $perPage  Items per page (default: 15)
      * @param  array|null  $data  Additional data to append to pagination links
      *
@@ -40,7 +42,7 @@ trait Filterable
      */
     public function scopeCustomPaginate(
         Builder $builder,
-        string $paginationType = 'paginate',
+        string|PaginationType $paginationType = 'paginate',
         ?int $perPage = null,
         ?array $data = null
     ): Paginator|LengthAwarePaginator|CursorPaginator {
@@ -66,12 +68,17 @@ trait Filterable
             }
             $builder->orderBy($orderBy, $order);
         }
+        // Convert string to enum if needed
+        try {
+            $type = is_string($paginationType) ? PaginationType::from($paginationType) : $paginationType;
+        } catch (ValueError $e) {
+            throw new InvalidArgumentException("Invalid pagination type [$paginationType]. Use 'paginate', 'simple', or 'cursor'.", 0, $e);
+        }
 
-        return match ($paginationType) {
-            'simple' => $builder->simplePaginate($perPage)->appends($data),
-            'cursor' => $builder->cursorPaginate($perPage)->appends($data),
-            'paginate' => $builder->paginate($perPage)->appends($data),
-            default => throw new InvalidArgumentException("Invalid pagination type [$paginationType]. Use 'paginate', 'simple', or 'cursor'."),
+        return match ($type) {
+            PaginationType::SIMPLE => $builder->simplePaginate($perPage)->appends($data),
+            PaginationType::CURSOR => $builder->cursorPaginate($perPage)->appends($data),
+            PaginationType::PAGINATE => $builder->paginate($perPage)->appends($data),
         };
     }
 
@@ -152,7 +159,7 @@ trait Filterable
         $cacheKey = md5(json_encode($relationship ?? 'null', JSON_THROW_ON_ERROR));
 
         if (! isset($this->validationCache[$cacheKey])) {
-            $this->validationCache[$cacheKey] = $relationship !== null && $relationship !== '' && $relationship !== '0';
+            $this->validationCache[$cacheKey] = ! in_array($relationship, [null, '', '0'], true);
         }
 
         return $this->validationCache[$cacheKey];
@@ -256,7 +263,7 @@ trait Filterable
     {
         foreach ($filters as $filter) {
             $logic = $filter->getConditionalLogic();
-            if ($logic !== null && $logic !== '' && $logic !== '0') {
+            if (! in_array($logic, [null, '', '0'], true)) {
                 return true;
             }
         }
@@ -308,7 +315,7 @@ trait Filterable
         $cacheKey = 'logic_'.md5(json_encode($logic ?? 'null', JSON_THROW_ON_ERROR));
 
         if (! isset($this->validationCache[$cacheKey])) {
-            $this->validationCache[$cacheKey] = $logic !== null && $logic !== '' && $logic !== '0';
+            $this->validationCache[$cacheKey] = ! in_array($logic, [null, '', '0'], true);
         }
 
         return $this->validationCache[$cacheKey];
@@ -448,7 +455,7 @@ trait Filterable
     {
         $path = $filter->getJsonPath();
 
-        return $path !== null && $path !== '' && $path !== '0';
+        return ! in_array($path, [null, '', '0'], true);
     }
 
     /**
