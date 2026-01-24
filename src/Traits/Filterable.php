@@ -502,7 +502,7 @@ trait Filterable
                 static fn ($word): ?string => preg_replace('/[^\w\s\-]/u', '', $word),
                 $words
             ),
-            static fn ($word): bool => $word !== ''
+            static fn (?string $word): bool => $word !== ''
         );
 
         $tsquery = implode(' & ', array_map(
@@ -510,7 +510,7 @@ trait Filterable
             $processedWords
         ));
 
-        if (empty($tsquery)) {
+        if ($tsquery === '' || $tsquery === '0') {
             return;
         }
 

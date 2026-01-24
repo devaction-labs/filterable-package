@@ -177,6 +177,48 @@ WHERE (
 
 **Note:** MySQL/SQLite ignore language setting
 
+---
+
+### Setting Default Language via Environment
+
+**To control the default language globally, you need to create an environment variable:**
+
+**Step 1: Add to `config/app.php`**
+```php
+return [
+    // ... other settings
+
+    'fulltext_language' => env('FULLTEXT_LANGUAGE', 'simple'),
+];
+```
+
+**Step 2: Add to `.env` file**
+```env
+FULLTEXT_LANGUAGE=portuguese
+```
+
+**Step 3: Use without specifying language**
+```php
+// Automatically uses 'portuguese' from .env
+Filter::fullText(['title', 'content'], 'q')
+// No need for ->setFullTextLanguage()
+```
+
+**Priority Order:**
+1. `->setFullTextLanguage('english')` → Uses `'english'` (overrides .env)
+2. `.env` → `FULLTEXT_LANGUAGE=portuguese` → Uses `'portuguese'`
+3. No config → Uses `'simple'` (PostgreSQL default)
+
+**Example:**
+```php
+// Uses .env setting (e.g., 'portuguese')
+Filter::fullText(['name', 'description'], 'search')
+
+// Overrides .env and uses 'english'
+Filter::fullText(['name', 'description'], 'search')
+    ->setFullTextLanguage('english')
+```
+
 ### Configuration: setFullTextPrefixMatch()
 
 **WHY:** Control whether partial words match

@@ -9,6 +9,66 @@
 
 A Laravel package for filterable traits and classes. This package provides powerful, dynamic query filtering capabilities directly from incoming requests, especially useful when developing flexible and dynamic APIs.
 
+## Quick Example
+
+```php
+use DevactionLabs\FilterablePackage\Filter;
+
+// In your controller
+$products = Product::query()
+    ->filtrable([
+        // Full-text search across multiple columns (PostgreSQL GIN index support)
+        Filter::fullText(['name', 'description', 'sku'], 'search')
+            ->setFullTextLanguage('portuguese'),
+
+        // Price range filter
+        Filter::between('price', 'price_range'),
+
+        // Multiple categories (comma-separated: ?filter[categories]=1,2,3)
+        Filter::in('category_id', 'categories'),
+
+        // Relationship filter with eager loading
+        Filter::relationship('brand', 'slug', '=', 'brand')
+            ->with(),
+
+        // Advanced: Products with ANY of these tags
+        Filter::relationship('tags', 'name')
+            ->whereAny([
+                ['name', '=', 'sale'],
+                ['name', '=', 'featured'],
+                ['name', '=', 'new'],
+            ])
+            ->with(),
+
+        // Date filter with automatic Carbon conversion
+        Filter::exact('created_at', 'date')
+            ->castDate()
+            ->endOfDay(),
+
+        // JSON field filtering (PostgreSQL/MySQL)
+        Filter::json('attributes', 'color', '=', 'color')
+            ->setDatabaseDriver('pgsql'),
+    ])
+    ->customPaginate('paginate', 20, [
+        'per_page' => request('per_page', 20),
+        'sort' => request('sort', '-created_at'),
+    ]);
+
+return response()->json($products);
+```
+
+**Example Request:**
+```bash
+GET /api/products?filter[search]=laptop&filter[price_range]=1000,3000&filter[categories]=1,2&filter[brand]=apple&filter[color]=silver&sort=-price&per_page=50
+```
+
+**Generated SQL:**
+- ✅ Optimized WHERE clauses
+- ✅ Automatic JOIN for relationships
+- ✅ Eager loading to prevent N+1
+- ✅ PostgreSQL full-text search with GIN indexes (10-100x faster!)
+- ✅ Pagination with sort support
+
 ## Features
 
 - **Easy Integration:** Apply the `Filterable` trait to your Eloquent models.
@@ -20,6 +80,28 @@ A Laravel package for filterable traits and classes. This package provides power
 - **JSON Support:** Directly filter JSON columns with dot-notation.
 - **Performance Optimizations:** Built-in caching and efficient query construction.
 - **Date Handling:** Smart handling of date fields with Carbon integration.
+
+## Available Filter Types
+
+| Filter | Purpose | Example Request |
+|--------|---------|-----------------|
+| `Filter::fullText(['title', 'content'], 'q')` | Full-text search (PostgreSQL GIN, MySQL LIKE) | `?filter[q]=laravel` |
+| `Filter::exact('status', 'status')` | Exact match (`=`) | `?filter[status]=active` |
+| `Filter::like('name', 'search')` | Pattern matching (LIKE) | `?filter[search]=laptop` |
+| `Filter::ilike('email', 'search')` | Case-insensitive search | `?filter[search]=ADMIN` |
+| `Filter::in('category_id', 'categories')` | Multiple values (IN) | `?filter[categories]=1,2,3` |
+| `Filter::between('price', 'range')` | Range filter (BETWEEN) | `?filter[range]=100,500` |
+| `Filter::gte('price', 'min')` | Greater than or equal | `?filter[min]=100` |
+| `Filter::lte('price', 'max')` | Less than or equal | `?filter[max]=500` |
+| `Filter::relationship('brand', 'slug')` | Filter by related model | `?filter[brand]=apple` |
+| `Filter::json('data', 'color', '=', 'color')` | JSON field filtering | `?filter[color]=red` |
+| `Filter::isNotNull('verified_at')` | Not null check | `?filter[verified]=1` |
+| `Filter::startsWith('sku', 'code')` | Prefix matching | `?filter[code]=PRD` |
+| `Filter::notIn('status', 'exclude')` | Exclude values | `?filter[exclude]=banned,spam` |
+
+**And more:** `notEquals`, `notLike`, `endsWith`, `isNull`, `gt`, `lt`
+
+> 📚 **[See Complete Reference](FILTER_REFERENCE.md)** for detailed parameter explanations
 
 ## 📖 Documentation
 
@@ -33,9 +115,13 @@ A Laravel package for filterable traits and classes. This package provides power
 composer require devaction-labs/filterable-package
 ```
 
-## Usage
+**Requirements:**
+- PHP 8.3, 8.4, or 8.5
+- Laravel 11 or 12
 
-### Step 1: Add the `Filterable` Trait
+## Getting Started
+
+### 1️⃣ Add the Filterable Trait to Your Model
 
 ```php
 namespace App\Models;
@@ -43,20 +129,25 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use DevactionLabs\FilterablePackage\Traits\Filterable;
 
-class Expense extends Model
+class Product extends Model
 {
     use Filterable;
 
+    // Optional: Map request parameters to database columns
     protected array $filterMap = [
-        'search' => 'description',
-        'date'   => 'expense_date',
+        'search' => 'name',
+        'category' => 'category_id',
     ];
 
-    protected array $allowedSorts = ['expense_date', 'amount'];
+    // Optional: Define sortable columns (prevents SQL injection)
+    protected array $allowedSorts = ['name', 'price', 'created_at'];
+
+    // Optional: Default sort
+    protected string $defaultSort = '-created_at';
 }
 ```
 
-### Step 2: Applying Filters in Controllers
+### 2️⃣ Use Filters in Your Controller
 
 ```php
 namespace App\Http\Controllers\Api;
@@ -201,11 +292,26 @@ Filter::fullText(['title', 'content', 'tags'], 'search')
 **Configuration Methods:**
 
 **1. Language (PostgreSQL only):**
+
+**Option A: Set via Environment Variable (Recommended)**
+```php
+// Step 1: Add to config/app.php
+'fulltext_language' => env('FULLTEXT_LANGUAGE', 'simple'),
+
+// Step 2: Add to .env file
+FULLTEXT_LANGUAGE=portuguese
+
+// Step 3: Use without specifying (automatically uses .env value)
+Filter::fullText(['title', 'content'], 'q')
+// Uses 'portuguese' from .env automatically
+```
+
+**Option B: Set Explicitly (Overrides .env)**
 ```php
 Filter::fullText(['title', 'content'], 'q')
     ->setFullTextLanguage('portuguese')  // Portuguese stemming
 //                         ↑
-//                  language name
+//                  overrides .env setting
 ```
 
 **Available:** `'simple'`, `'english'`, `'portuguese'`, `'spanish'`, `'french'`, etc.
