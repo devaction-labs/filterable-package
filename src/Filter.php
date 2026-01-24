@@ -180,27 +180,27 @@ class Filter
     protected function prepareValue(mixed $value): mixed
     {
         if (is_string($value)) {
-            if ($this->operator === self::OPERATOR_BETWEEN && str_contains($value, ',')) {
+            if ($this->operator === FilterOperator::BETWEEN->value && str_contains($value, ',')) {
                 return explode(',', $value);
             }
 
-            if ($this->operator === self::OPERATOR_LIKE) {
+            if ($this->operator === FilterOperator::LIKE->value) {
                 return str_replace('{{value}}', $value, $this->likePattern);
             }
 
-            if ($this->operator === self::OPERATOR_NOT_LIKE) {
+            if ($this->operator === FilterOperator::NOT_LIKE->value) {
                 return str_replace('{{value}}', $value, $this->likePattern);
             }
 
-            if ($this->operator === self::OPERATOR_STARTS_WITH) {
+            if ($this->operator === FilterOperator::STARTS_WITH->value) {
                 return $value.'%';
             }
 
-            if ($this->operator === self::OPERATOR_ENDS_WITH) {
+            if ($this->operator === FilterOperator::ENDS_WITH->value) {
                 return '%'.$value;
             }
 
-            if (($this->operator === self::OPERATOR_IN || $this->operator === self::OPERATOR_NOT_IN) && str_contains($value, ',')) {
+            if (($this->operator === FilterOperator::IN->value || $this->operator === FilterOperator::NOT_IN->value) && str_contains($value, ',')) {
                 return explode(',', $value);
             }
         }
@@ -253,8 +253,8 @@ class Filter
     {
         if (is_string($value)) {
             return match ($this->operator) {
-                self::OPERATOR_LIKE => '%'.$value.'%',
-                self::OPERATOR_IN => str_contains($value, ',') ? explode(',', $value) : $value,
+                FilterOperator::LIKE->value => '%'.$value.'%',
+                FilterOperator::IN->value => str_contains($value, ',') ? explode(',', $value) : $value,
                 default => $value
             };
         }
@@ -296,7 +296,7 @@ class Filter
      */
     public static function exact(string $attribute, ?string $filterBy = null): self
     {
-        return new self($attribute, self::OPERATOR_EQUALS, $filterBy);
+        return new self($attribute, FilterOperator::EQUALS->value, $filterBy);
     }
 
     /**
@@ -307,7 +307,7 @@ class Filter
      */
     public static function like(string $attribute, ?string $filterBy = null): self
     {
-        return new self($attribute, self::OPERATOR_LIKE, $filterBy);
+        return new self($attribute, FilterOperator::LIKE->value, $filterBy);
     }
 
     /**
@@ -330,7 +330,7 @@ class Filter
      */
     public static function in(string $attribute, ?string $filterBy = null): self
     {
-        return new self($attribute, self::OPERATOR_IN, $filterBy);
+        return new self($attribute, FilterOperator::IN->value, $filterBy);
     }
 
     /**
@@ -341,7 +341,7 @@ class Filter
      */
     public static function gte(string $attribute, ?string $filterBy = null): self
     {
-        return new self($attribute, self::OPERATOR_GTE, $filterBy);
+        return new self($attribute, FilterOperator::GTE->value, $filterBy);
     }
 
     /**
@@ -352,7 +352,7 @@ class Filter
      */
     public static function gt(string $attribute, ?string $filterBy = null): self
     {
-        return new self($attribute, self::OPERATOR_GT, $filterBy);
+        return new self($attribute, FilterOperator::GT->value, $filterBy);
     }
 
     /**
@@ -363,7 +363,7 @@ class Filter
      */
     public static function lte(string $attribute, ?string $filterBy = null): self
     {
-        return new self($attribute, self::OPERATOR_LTE, $filterBy);
+        return new self($attribute, FilterOperator::LTE->value, $filterBy);
     }
 
     /**
@@ -374,7 +374,7 @@ class Filter
      */
     public static function lt(string $attribute, ?string $filterBy = null): self
     {
-        return new self($attribute, self::OPERATOR_LT, $filterBy);
+        return new self($attribute, FilterOperator::LT->value, $filterBy);
     }
 
     /**
@@ -385,7 +385,7 @@ class Filter
      */
     public static function between(string $attribute, ?string $filterBy = null): self
     {
-        return new self($attribute, self::OPERATOR_BETWEEN, $filterBy);
+        return new self($attribute, FilterOperator::BETWEEN->value, $filterBy);
     }
 
     /**
@@ -396,7 +396,7 @@ class Filter
      */
     public static function ilike(string $attribute, ?string $filterBy = null): self
     {
-        return new self($attribute, self::OPERATOR_ILIKE, $filterBy);
+        return new self($attribute, FilterOperator::ILIKE->value, $filterBy);
     }
 
     /**
@@ -407,7 +407,7 @@ class Filter
      */
     public static function notEquals(string $attribute, ?string $filterBy = null): self
     {
-        return new self($attribute, self::OPERATOR_NOT_EQUALS, $filterBy);
+        return new self($attribute, FilterOperator::NOT_EQUALS->value, $filterBy);
     }
 
     /**
@@ -418,7 +418,7 @@ class Filter
      */
     public static function notIn(string $attribute, ?string $filterBy = null): self
     {
-        return new self($attribute, self::OPERATOR_NOT_IN, $filterBy);
+        return new self($attribute, FilterOperator::NOT_IN->value, $filterBy);
     }
 
     /**
@@ -429,7 +429,7 @@ class Filter
      */
     public static function notLike(string $attribute, ?string $filterBy = null): self
     {
-        return new self($attribute, self::OPERATOR_NOT_LIKE, $filterBy);
+        return new self($attribute, FilterOperator::NOT_LIKE->value, $filterBy);
     }
 
     /**
@@ -440,7 +440,7 @@ class Filter
      */
     public static function isNull(string $attribute, ?string $filterBy = null): self
     {
-        return new self($attribute, self::OPERATOR_IS_NULL, $filterBy);
+        return new self($attribute, FilterOperator::IS_NULL->value, $filterBy);
     }
 
     /**
@@ -451,7 +451,7 @@ class Filter
      */
     public static function isNotNull(string $attribute, ?string $filterBy = null): self
     {
-        return new self($attribute, self::OPERATOR_IS_NOT_NULL, $filterBy);
+        return new self($attribute, FilterOperator::IS_NOT_NULL->value, $filterBy);
     }
 
     /**
@@ -462,7 +462,7 @@ class Filter
      */
     public static function startsWith(string $attribute, ?string $filterBy = null): self
     {
-        return new self($attribute, self::OPERATOR_STARTS_WITH, $filterBy);
+        return new self($attribute, FilterOperator::STARTS_WITH->value, $filterBy);
     }
 
     /**
@@ -473,7 +473,7 @@ class Filter
      */
     public static function endsWith(string $attribute, ?string $filterBy = null): self
     {
-        return new self($attribute, self::OPERATOR_ENDS_WITH, $filterBy);
+        return new self($attribute, FilterOperator::ENDS_WITH->value, $filterBy);
     }
 
     /**
@@ -484,7 +484,7 @@ class Filter
      * @param  string  $operator  SQL comparison operator
      * @param  string|null  $filterBy  The request parameter to use for filtering
      */
-    public static function relationship(string $relationship, string $attribute, string $operator = self::OPERATOR_EQUALS, ?string $filterBy = null): self
+    public static function relationship(string $relationship, string $attribute, string $operator = FilterOperator::EQUALS->value, ?string $filterBy = null): self
     {
         $filter = new self(sprintf('%s.%s', $relationship, $attribute), $operator, $filterBy);
         $filter->relationship = $relationship;
@@ -501,7 +501,7 @@ class Filter
      * @param  string  $operator  SQL comparison operator
      * @param  string|null  $filterBy  The request parameter to use for filtering
      */
-    public static function json(string $attribute, string $path, string $operator = self::OPERATOR_EQUALS, ?string $filterBy = null): self
+    public static function json(string $attribute, string $path, string $operator = FilterOperator::EQUALS->value, ?string $filterBy = null): self
     {
         $filter = new self($attribute, $operator, $filterBy);
         $filter->setJsonPath($path);
@@ -586,7 +586,6 @@ class Filter
         if ($this->jsonPath !== null && is_string($this->value)) {
             $jsonValue = $this->extractJsonValue($this->value);
 
-            // Ensure we're returning a compatible type
             if (is_string($jsonValue) || is_int($jsonValue) || $jsonValue instanceof Carbon || $jsonValue === null) {
                 return $jsonValue;
             }
@@ -596,7 +595,6 @@ class Filter
                 return $jsonValue;
             }
 
-            // Fallback to original value if type is not compatible
             return $this->value;
         }
 
@@ -611,7 +609,6 @@ class Filter
 
                     return $this->applyDateModifiers($carbonDate);
                 } catch (InvalidArgumentException) {
-                    // If conversion fails, return original value
                     return $this->value;
                 }
             }
@@ -648,7 +645,7 @@ class Filter
      */
     public function setValue(string|int|array|Carbon|null $value): self
     {
-        if ($this->operator === self::OPERATOR_BETWEEN) {
+        if ($this->operator === FilterOperator::BETWEEN->value) {
             $this->validateBetweenValue($value);
         }
 
