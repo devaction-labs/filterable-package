@@ -82,6 +82,35 @@ it('handles search_vector column for PostgreSQL', function (): void {
         ->and($filter->getAttribute())->toBe('search_vector');
 });
 
+it('can mark column as tsvector with useTsVector', function (): void {
+    $filter = Filter::fullText('search_vector')->useTsVector();
+
+    expect($filter->isTsVector())->toBeTrue();
+});
+
+it('defaults to non-tsvector column', function (): void {
+    $filter = Filter::fullText('content');
+
+    expect($filter->isTsVector())->toBeFalse();
+});
+
+it('can disable tsvector mode', function (): void {
+    $filter = Filter::fullText('search_vector')->useTsVector()->useTsVector(false);
+
+    expect($filter->isTsVector())->toBeFalse();
+});
+
+it('can chain useTsVector with other configuration methods', function (): void {
+    $filter = Filter::fullText('custom_fts')
+        ->useTsVector()
+        ->setFullTextLanguage('portuguese')
+        ->setDatabaseDriver('pgsql');
+
+    expect($filter->isTsVector())->toBeTrue()
+        ->and($filter->getFullTextLanguage())->toBe('portuguese')
+        ->and($filter->isUsingPostgreSQL())->toBeTrue();
+});
+
 it('can configure language after creation', function (): void {
     $filter = Filter::fullText('content');
 

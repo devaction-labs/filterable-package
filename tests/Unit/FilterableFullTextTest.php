@@ -122,7 +122,7 @@ it('applies full-text search filter on SQLite using LIKE', function (): void {
     expect(true)->toBeTrue();
 });
 
-it('uses websearch_to_tsquery for search_vector column', function (): void {
+it('uses websearch_to_tsquery for tsvector column with useTsVector', function (): void {
     global $builder, $model;
 
     $builder->shouldReceive('whereRaw')
@@ -138,7 +138,56 @@ it('uses websearch_to_tsquery for search_vector column', function (): void {
 
     $filter = Filter::fullText('search_vector', 'search')
         ->setDatabaseDriver('pgsql')
+        ->useTsVector()
         ->setValue('laravel');
+
+    $model->scopeFilterable($builder, [$filter]);
+
+    expect(true)->toBeTrue();
+});
+
+it('uses websearch_to_tsquery for custom tsvector column name', function (): void {
+    global $builder, $model;
+
+    $builder->shouldReceive('whereRaw')
+        ->once()
+        ->withArgs(fn ($sql, $bindings): bool => str_contains((string) $sql, 'custom_fts_column') &&
+               str_contains((string) $sql, 'websearch_to_tsquery') &&
+               $bindings[0] === 'test query')
+        ->andReturnSelf();
+
+    $builder->shouldReceive('with')
+        ->zeroOrMoreTimes()
+        ->andReturnSelf();
+
+    $filter = Filter::fullText('custom_fts_column', 'q')
+        ->setDatabaseDriver('pgsql')
+        ->useTsVector()
+        ->setValue('test query');
+
+    $model->scopeFilterable($builder, [$filter]);
+
+    expect(true)->toBeTrue();
+});
+
+it('uses configured language for tsvector column', function (): void {
+    global $builder, $model;
+
+    $builder->shouldReceive('whereRaw')
+        ->once()
+        ->withArgs(fn ($sql, $bindings): bool => str_contains((string) $sql, "'portuguese'") &&
+               str_contains((string) $sql, 'websearch_to_tsquery'))
+        ->andReturnSelf();
+
+    $builder->shouldReceive('with')
+        ->zeroOrMoreTimes()
+        ->andReturnSelf();
+
+    $filter = Filter::fullText('search_vector', 'search')
+        ->setDatabaseDriver('pgsql')
+        ->useTsVector()
+        ->setFullTextLanguage('portuguese')
+        ->setValue('teste');
 
     $model->scopeFilterable($builder, [$filter]);
 
