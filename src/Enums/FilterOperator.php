@@ -25,6 +25,7 @@ enum FilterOperator: string
     case IS_NOT_NULL = 'IS NOT NULL';
     case STARTS_WITH = 'STARTS_WITH';
     case ENDS_WITH = 'ENDS_WITH';
+    case FULL_TEXT = 'FULL_TEXT';
 
     /**
      * Check if the operator requires a value

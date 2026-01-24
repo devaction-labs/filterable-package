@@ -10,6 +10,7 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Contracts\Pagination\Paginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\Expression;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use JsonException;
@@ -454,6 +455,88 @@ trait Filterable
     }
 
     /**
+     * Apply full-text search filter
+     */
+    private function applyFullTextSearch(Builder $builder, Filter $filter, mixed $searchTerm): void
+    {
+        if (! is_string($searchTerm) || trim($searchTerm) === '') {
+            return;
+        }
+
+        $columns = $filter->getFullTextColumns() ?? [$filter->getAttribute()];
+        $language = $filter->getFullTextLanguage();
+        $prefixMatch = $filter->getFullTextPrefixMatch();
+
+        if ($filter->isUsingPostgreSQL()) {
+            $this->applyPostgreSQLFullTextSearch($builder, $searchTerm, $columns, $language, $prefixMatch);
+
+            return;
+        }
+
+        $this->applyGenericFullTextSearch($builder, $searchTerm, $columns, $prefixMatch);
+    }
+
+    /**
+     * Apply PostgreSQL full-text search
+     *
+     * @param  array<int, string>  $columns
+     */
+    private function applyPostgreSQLFullTextSearch(Builder $builder, string $searchTerm, array $columns, ?string $language, bool $prefixMatch): void
+    {
+        $lang = $language ?? Config::get('app.fulltext_language', 'simple');
+
+        if (count($columns) === 1 && $columns[0] === 'search_vector') {
+            $builder->whereRaw("search_vector @@ websearch_to_tsquery('simple', ?)", [$searchTerm]);
+
+            return;
+        }
+
+        $tsVector = implode(' || ', array_map(
+            static fn (string $column): string => sprintf("to_tsvector('%s', COALESCE(%s, ''))", $lang, $column),
+            $columns
+        ));
+
+        $words = preg_split('/\s+/', trim($searchTerm));
+        $processedWords = array_filter(
+            array_map(
+                static fn ($word): ?string => preg_replace('/[^\w\s\-]/u', '', $word),
+                $words
+            ),
+            static fn (?string $word): bool => $word !== ''
+        );
+
+        $tsquery = implode(' & ', array_map(
+            static fn ($word): string => $prefixMatch ? $word.':*' : $word,
+            $processedWords
+        ));
+
+        if ($tsquery === '' || $tsquery === '0') {
+            return;
+        }
+
+        $builder->whereRaw(
+            sprintf("(%s) @@ to_tsquery('%s', ?)", $tsVector, $lang),
+            [$tsquery]
+        );
+    }
+
+    /**
+     * Apply generic full-text search (fallback for non-PostgreSQL databases)
+     *
+     * @param  array<int, string>  $columns
+     */
+    private function applyGenericFullTextSearch(Builder $builder, string $searchTerm, array $columns, bool $prefixMatch): void
+    {
+        $likePattern = $prefixMatch ? '%'.$searchTerm.'%' : $searchTerm;
+
+        $builder->where(function ($query) use ($columns, $likePattern): void {
+            foreach ($columns as $column) {
+                $query->orWhere($column, 'like', $likePattern);
+            }
+        });
+    }
+
+    /**
      * Check if a filter has a JSON path
      */
     private function hasJsonPath(Filter $filter): bool
@@ -512,6 +595,12 @@ trait Filterable
 
         if ($filter->getOperator() === 'ILIKE') {
             $this->applyIlikeFilter($builder, $filter, $attribute, $value);
+
+            return;
+        }
+
+        if ($filter->getOperator() === 'FULL_TEXT') {
+            $this->applyFullTextSearch($builder, $filter, $value);
 
             return;
         }
