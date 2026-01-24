@@ -42,7 +42,7 @@ it('applies full-text search filter on PostgreSQL', function (): void {
 
     $builder->shouldReceive('whereRaw')
         ->once()
-        ->withArgs(fn($sql, $bindings): bool => str_contains((string) $sql, 'to_tsvector') &&
+        ->withArgs(fn ($sql, $bindings): bool => str_contains((string) $sql, 'to_tsvector') &&
                str_contains((string) $sql, 'to_tsquery') &&
                count($bindings) === 1)
         ->andReturnSelf();
@@ -65,7 +65,7 @@ it('applies full-text search filter on MySQL using LIKE', function (): void {
 
     $builder->shouldReceive('where')
         ->once()
-        ->withArgs(fn($callback): bool => is_callable($callback))
+        ->withArgs(fn ($callback): bool => is_callable($callback))
         ->andReturnUsing(function ($callback) use ($builder) {
             $subQuery = Mockery::mock(Builder::class);
 
@@ -96,7 +96,7 @@ it('applies full-text search filter on SQLite using LIKE', function (): void {
 
     $builder->shouldReceive('where')
         ->once()
-        ->withArgs(fn($callback): bool => is_callable($callback))
+        ->withArgs(fn ($callback): bool => is_callable($callback))
         ->andReturnUsing(function ($callback) use ($builder) {
             $subQuery = Mockery::mock(Builder::class);
 
@@ -127,7 +127,7 @@ it('uses websearch_to_tsquery for search_vector column', function (): void {
 
     $builder->shouldReceive('whereRaw')
         ->once()
-        ->withArgs(fn($sql, $bindings): bool => str_contains((string) $sql, 'search_vector') &&
+        ->withArgs(fn ($sql, $bindings): bool => str_contains((string) $sql, 'search_vector') &&
                str_contains((string) $sql, 'websearch_to_tsquery') &&
                $bindings[0] === 'laravel')
         ->andReturnSelf();
@@ -167,7 +167,7 @@ it('applies configured language in PostgreSQL full-text search', function (): vo
 
     $builder->shouldReceive('whereRaw')
         ->once()
-        ->withArgs(fn($sql): bool => str_contains((string) $sql, "'english'"))
+        ->withArgs(fn ($sql): bool => str_contains((string) $sql, "'english'"))
         ->andReturnSelf();
 
     $builder->shouldReceive('with')
@@ -189,7 +189,7 @@ it('applies prefix matching in PostgreSQL full-text search', function (): void {
 
     $builder->shouldReceive('whereRaw')
         ->once()
-        ->withArgs(fn($sql, $bindings): bool => str_contains((string) $bindings[0], ':*'))
+        ->withArgs(fn ($sql, $bindings): bool => str_contains((string) $bindings[0], ':*'))
         ->andReturnSelf();
 
     $builder->shouldReceive('with')
@@ -211,7 +211,7 @@ it('disables prefix matching when configured', function (): void {
 
     $builder->shouldReceive('whereRaw')
         ->once()
-        ->withArgs(fn($sql, $bindings): bool => ! str_contains((string) $bindings[0], ':*'))
+        ->withArgs(fn ($sql, $bindings): bool => ! str_contains((string) $bindings[0], ':*'))
         ->andReturnSelf();
 
     $builder->shouldReceive('with')
@@ -233,7 +233,7 @@ it('handles multiple words in PostgreSQL full-text search', function (): void {
 
     $builder->shouldReceive('whereRaw')
         ->once()
-        ->withArgs(fn($sql, $bindings): bool => str_contains((string) $bindings[0], ' & '))
+        ->withArgs(fn ($sql, $bindings): bool => str_contains((string) $bindings[0], ' & '))
         ->andReturnSelf();
 
     $builder->shouldReceive('with')
@@ -254,7 +254,7 @@ it('searches single column with generic search', function (): void {
 
     $builder->shouldReceive('where')
         ->once()
-        ->withArgs(fn($callback): bool => is_callable($callback))
+        ->withArgs(fn ($callback): bool => is_callable($callback))
         ->andReturnUsing(function ($callback) use ($builder) {
             $subQuery = Mockery::mock(Builder::class);
 
