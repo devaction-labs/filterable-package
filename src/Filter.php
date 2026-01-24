@@ -114,6 +114,8 @@ class Filter
 
     protected bool $fullTextPrefixMatch = true;
 
+    protected bool $isTsVector = false;
+
     /**
      * Create a new filter instance
      *
@@ -619,6 +621,22 @@ class Filter
     }
 
     /**
+     * Mark the column as a pre-computed tsvector column
+     *
+     * When enabled, the filter will use the column directly with @@ operator
+     * instead of converting it to tsvector at query time. This is much faster
+     * when you have a GIN-indexed tsvector column.
+     *
+     * @param  bool  $isTsVector  If true, treats the column as a tsvector type
+     */
+    public function useTsVector(bool $isTsVector = true): self
+    {
+        $this->isTsVector = $isTsVector;
+
+        return $this;
+    }
+
+    /**
      * Get the processed value for this filter
      *
      * @return string|array<int|string>|Carbon|int|null
@@ -912,6 +930,14 @@ class Filter
     public function getFullTextPrefixMatch(): bool
     {
         return $this->fullTextPrefixMatch;
+    }
+
+    /**
+     * Check if the column is a pre-computed tsvector column
+     */
+    public function isTsVector(): bool
+    {
+        return $this->isTsVector;
     }
 
     /**

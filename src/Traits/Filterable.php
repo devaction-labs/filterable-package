@@ -466,9 +466,10 @@ trait Filterable
         $columns = $filter->getFullTextColumns() ?? [$filter->getAttribute()];
         $language = $filter->getFullTextLanguage();
         $prefixMatch = $filter->getFullTextPrefixMatch();
+        $isTsVector = $filter->isTsVector();
 
         if ($filter->isUsingPostgreSQL()) {
-            $this->applyPostgreSQLFullTextSearch($builder, $searchTerm, $columns, $language, $prefixMatch);
+            $this->applyPostgreSQLFullTextSearch($builder, $searchTerm, $columns, $language, $prefixMatch, $isTsVector);
 
             return;
         }
@@ -481,12 +482,13 @@ trait Filterable
      *
      * @param  array<int, string>  $columns
      */
-    private function applyPostgreSQLFullTextSearch(Builder $builder, string $searchTerm, array $columns, ?string $language, bool $prefixMatch): void
+    private function applyPostgreSQLFullTextSearch(Builder $builder, string $searchTerm, array $columns, ?string $language, bool $prefixMatch, bool $isTsVector = false): void
     {
         $lang = $language ?? Config::get('app.fulltext_language', 'simple');
 
-        if (count($columns) === 1 && $columns[0] === 'search_vector') {
-            $builder->whereRaw("search_vector @@ websearch_to_tsquery('simple', ?)", [$searchTerm]);
+        if ($isTsVector && count($columns) === 1) {
+            $column = $columns[0];
+            $builder->whereRaw("{$column} @@ websearch_to_tsquery('{$lang}', ?)", [$searchTerm]);
 
             return;
         }
