@@ -106,6 +106,15 @@ class Filter
     protected array $conditionalConditions = [];
 
     /**
+     * @var array<int, string>|null
+     */
+    protected ?array $fullTextColumns = null;
+
+    protected ?string $fullTextLanguage = null;
+
+    protected bool $fullTextPrefixMatch = true;
+
+    /**
      * Create a new filter instance
      *
      * @param  string  $attribute  The database column to filter
@@ -477,6 +486,23 @@ class Filter
     }
 
     /**
+     * Create a new full-text search filter
+     *
+     * @param  array<int, string>|string  $columns  Columns to search (string for single column or array for multiple)
+     * @param  string|null  $filterBy  The request parameter to use for filtering
+     */
+    public static function fullText(array|string $columns, ?string $filterBy = null): self
+    {
+        $columnsArray = is_array($columns) ? $columns : [$columns];
+        $firstColumn = $columnsArray[0];
+
+        $filter = new self($firstColumn, FilterOperator::FULL_TEXT->value, $filterBy ?? 'search');
+        $filter->fullTextColumns = $columnsArray;
+
+        return $filter;
+    }
+
+    /**
      * Create a new relationship filter
      *
      * @param  string  $relationship  The relationship name
@@ -564,6 +590,30 @@ class Filter
     public function setFilterBy(string $filterBy): self
     {
         $this->filterBy = $filterBy;
+
+        return $this;
+    }
+
+    /**
+     * Set the full-text search language
+     *
+     * @param  string|null  $language  The language for full-text search (e.g., 'portuguese', 'english', 'simple')
+     */
+    public function setFullTextLanguage(?string $language): self
+    {
+        $this->fullTextLanguage = $language;
+
+        return $this;
+    }
+
+    /**
+     * Set whether to use prefix matching in full-text search
+     *
+     * @param  bool  $prefixMatch  If true, adds :* for prefix matching. If false, exact match.
+     */
+    public function setFullTextPrefixMatch(bool $prefixMatch): self
+    {
+        $this->fullTextPrefixMatch = $prefixMatch;
 
         return $this;
     }
@@ -836,6 +886,32 @@ class Filter
     public function getConditionalConditions(): array
     {
         return $this->conditionalConditions;
+    }
+
+    /**
+     * Get the full-text search columns
+     *
+     * @return array<int, string>|null
+     */
+    public function getFullTextColumns(): ?array
+    {
+        return $this->fullTextColumns;
+    }
+
+    /**
+     * Get the full-text search language
+     */
+    public function getFullTextLanguage(): ?string
+    {
+        return $this->fullTextLanguage;
+    }
+
+    /**
+     * Check if full-text search should use prefix matching
+     */
+    public function getFullTextPrefixMatch(): bool
+    {
+        return $this->fullTextPrefixMatch;
     }
 
     /**

@@ -1,8 +1,8 @@
 <?php
 
 use Carbon\Carbon;
-use DevactionLabs\FilterablePackage\Filter;
 use DevactionLabs\FilterablePackage\Enums\FilterOperator;
+use DevactionLabs\FilterablePackage\Filter;
 use Illuminate\Support\Facades\Request;
 
 beforeEach(function (): void {
@@ -18,15 +18,15 @@ beforeEach(function (): void {
 it('can use generic filter creation', function (): void {
     $filter = Filter::generic('status', FilterOperator::NOT_EQUALS->value);
 
-    expect($filter->getAttribute())->toBe('status');
-    expect($filter->getOperator())->toBe(FilterOperator::NOT_EQUALS->value);
+    expect($filter->getAttribute())->toBe('status')
+        ->and($filter->getOperator())->toBe(FilterOperator::NOT_EQUALS->value);
 });
 
 it('can get operator as enum', function (): void {
     $filter = Filter::exact('name');
 
-    expect($filter->getOperatorEnum())->toBeInstanceOf(FilterOperator::class);
-    expect($filter->getOperatorEnum())->toBe(FilterOperator::EQUALS);
+    expect($filter->getOperatorEnum())->toBeInstanceOf(FilterOperator::class)
+        ->and($filter->getOperatorEnum())->toBe(FilterOperator::EQUALS);
 });
 
 it('handles custom like pattern', function (): void {
@@ -44,8 +44,8 @@ it('handles date with start of day', function (): void {
     $filter->setValue('2024-01-15');
 
     $value = $filter->getValue();
-    expect($value)->toBeInstanceOf(Carbon::class);
-    expect($value->format('H:i:s'))->toBe('00:00:00');
+    expect($value)->toBeInstanceOf(Carbon::class)
+        ->and($value->format('H:i:s'))->toBe('00:00:00');
 });
 
 it('handles date with end of day', function (): void {
@@ -53,8 +53,8 @@ it('handles date with end of day', function (): void {
     $filter->setValue('2024-01-15');
 
     $value = $filter->getValue();
-    expect($value)->toBeInstanceOf(Carbon::class);
-    expect($value->format('H:i:s'))->toBe('23:59:59');
+    expect($value)->toBeInstanceOf(Carbon::class)
+        ->and($value->format('H:i:s'))->toBe('23:59:59');
 });
 
 it('can check if filter should be ignored', function (): void {
@@ -71,9 +71,9 @@ it('handles relationship with conditional logic whereAny', function (): void {
         ->with()
         ->whereAny([['age', '>', 18], ['verified', '=', true]]);
 
-    expect($filter->shouldWith())->toBeTrue();
-    expect($filter->getConditionalLogic())->toBe('any');
-    expect($filter->getConditionalConditions())->toHaveCount(2);
+    expect($filter->shouldWith())->toBeTrue()
+        ->and($filter->getConditionalLogic())->toBe('any')
+        ->and($filter->getConditionalConditions())->toHaveCount(2);
 });
 
 it('handles relationship with conditional logic whereAll', function (): void {
@@ -118,9 +118,9 @@ it('can set database driver', function (): void {
     $filter = Filter::exact('name');
     $filter->setDatabaseDriver('pgsql');
 
-    expect($filter->isUsingPostgreSQL())->toBeTrue();
-    expect($filter->isUsingMySQL())->toBeFalse();
-    expect($filter->isUsingSQLite())->toBeFalse();
+    expect($filter->isUsingPostgreSQL())->toBeTrue()
+        ->and($filter->isUsingMySQL())->toBeFalse()
+        ->and($filter->isUsingSQLite())->toBeFalse();
 });
 
 it('handles integer values', function (): void {
@@ -175,8 +175,8 @@ it('handles NOT IN operator', function (): void {
 
     $filter = Filter::notIn('status');
 
-    expect($filter->getValue())->toBeArray();
-    expect($filter->getValue())->toHaveCount(2);
+    expect($filter->getValue())->toBeArray()
+        ->and($filter->getValue())->toHaveCount(2);
 });
 
 it('handles NOT LIKE operator', function (): void {
@@ -193,10 +193,10 @@ it('handles comparison operators', function (): void {
     $lte = Filter::lte('age');
     $lt = Filter::lt('age');
 
-    expect($gte->getOperator())->toBe(FilterOperator::GTE->value);
-    expect($gt->getOperator())->toBe(FilterOperator::GT->value);
-    expect($lte->getOperator())->toBe(FilterOperator::LTE->value);
-    expect($lt->getOperator())->toBe(FilterOperator::LT->value);
+    expect($gte->getOperator())->toBe(FilterOperator::GTE->value)
+        ->and($gt->getOperator())->toBe(FilterOperator::GT->value)
+        ->and($lte->getOperator())->toBe(FilterOperator::LTE->value)
+        ->and($lt->getOperator())->toBe(FilterOperator::LT->value);
 });
 
 it('can check if filter is date type', function (): void {
