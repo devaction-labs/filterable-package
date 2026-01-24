@@ -39,6 +39,7 @@ it('can create a like filter', function (): void {
 it('can set and get a filter value', function (): void {
     $filter = Filter::exact('name');
     $filter->setValue('John');
+
     expect($filter->getValue())->toBe('John');
 });
 

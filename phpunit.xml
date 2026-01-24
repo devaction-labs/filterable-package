@@ -14,9 +14,10 @@
     </testsuites>
     <source>
         <include>
-            <directory suffix=".php">./app</directory>
             <directory suffix=".php">./src</directory>
-            <server name="CACHE_DRIVER" value="array"/>
         </include>
     </source>
+    <php>
+        <server name="CACHE_DRIVER" value="array"/>
+    </php>
 </phpunit>

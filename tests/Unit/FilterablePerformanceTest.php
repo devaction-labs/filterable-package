@@ -15,7 +15,7 @@ class FilterableTestModel
 
 class FilterablePerformanceTest extends TestCase
 {
-    private \Tests\Unit\FilterableTestModel $model;
+    private FilterableTestModel $model;
 
     private $query;
 
@@ -137,10 +137,10 @@ class FilterablePerformanceTest extends TestCase
         // Create 50 filters to test performance with larger datasets
         for ($i = 0; $i < 50; $i++) {
             if ($i % 3 === 0) {
-                $filters[] = $this->createRelationshipFilter('user', "field{$i}", "value{$i}", $i % 2 === 0);
+                $filters[] = $this->createRelationshipFilter('user', 'field'.$i, 'value'.$i, $i % 2 === 0);
                 $relationshipFiltersCount++;
             } else {
-                $filters[] = $this->createDirectFilter("field{$i}", "value{$i}");
+                $filters[] = $this->createDirectFilter('field'.$i, 'value'.$i);
                 $directFiltersCount++;
             }
         }
@@ -193,7 +193,7 @@ class FilterablePerformanceTest extends TestCase
         $filter->shouldReceive('getRelationship')->andReturn($relationship);
         $filter->shouldReceive('getAttribute')->andReturn($attribute);
         $filter->shouldReceive('getValue')->andReturn($value);
-        $filter->shouldReceive('getFilterBy')->andReturn("{$relationship}.{$attribute}");
+        $filter->shouldReceive('getFilterBy')->andReturn(sprintf('%s.%s', $relationship, $attribute));
         $filter->shouldReceive('getOperator')->andReturn('=');
         $filter->shouldReceive('shouldWith')->andReturn($withRelation);
         $filter->shouldReceive('getJsonPath')->andReturn(null);
@@ -210,7 +210,7 @@ class FilterablePerformanceTest extends TestCase
         $filter->shouldReceive('getRelationship')->andReturn($relationship);
         $filter->shouldReceive('getAttribute')->andReturn('*');
         $filter->shouldReceive('getValue')->andReturn(null);
-        $filter->shouldReceive('getFilterBy')->andReturn("{$relationship}.*");
+        $filter->shouldReceive('getFilterBy')->andReturn($relationship.'.*');
         $filter->shouldReceive('getOperator')->andReturn('=');
         $filter->shouldReceive('shouldWith')->andReturn(false);
         $filter->shouldReceive('getJsonPath')->andReturn(null);
