@@ -60,19 +60,23 @@ trait Filterable
                 $orderBy = substr((string) $data['sort'], 1);
                 $order = 'DESC';
             }
+
             if (! empty($this->allowedSorts) && ! in_array($orderBy, $this->allowedSorts, true)) {
-                throw new InvalidArgumentException("The sort value [$orderBy] is not acceptable");
+                throw new InvalidArgumentException(sprintf('The sort value [%s] is not acceptable', $orderBy));
             }
+
             if (! empty($this->filterMap[$orderBy])) {
                 $orderBy = $this->filterMap[$orderBy];
             }
+
             $builder->orderBy($orderBy, $order);
         }
+
         // Convert string to enum if needed
         try {
             $type = is_string($paginationType) ? PaginationType::from($paginationType) : $paginationType;
-        } catch (ValueError $e) {
-            throw new InvalidArgumentException("Invalid pagination type [$paginationType]. Use 'paginate', 'simple', or 'cursor'.", 0, $e);
+        } catch (ValueError $valueError) {
+            throw new InvalidArgumentException(sprintf("Invalid pagination type [%s]. Use 'paginate', 'simple', or 'cursor'.", $paginationType), 0, $valueError);
         }
 
         return match ($type) {
@@ -250,6 +254,7 @@ trait Filterable
             if (! isset($grouped[$relationship])) {
                 $grouped[$relationship] = [];
             }
+
             $grouped[$relationship][] = $filter;
         }
 

@@ -192,6 +192,7 @@ it('detects database drivers correctly', function (): void {
     $filter = Filter::ilike('name');
 
     $filter->setDatabaseDriver('pgsql');
+
     expect($filter->isUsingPostgreSQL())->toBeTrue();
     expect($filter->isUsingMySQL())->toBeFalse();
     expect($filter->isUsingSQLite())->toBeFalse();

@@ -132,10 +132,14 @@ class Filter
         $value = $this->sanitizeInput($filters[$this->filterBy]);
         $processedValue = $this->prepareValue($value);
 
-        if (is_string($processedValue) || is_int($processedValue) || $processedValue instanceof Carbon || $processedValue === null) {
-            $this->value = $processedValue;
-        } elseif (is_array($processedValue)) {
+        if (is_array($processedValue)) {
             /** @var array<int|string> $processedValue */
+            $this->value = $processedValue;
+
+            return;
+        }
+
+        if (is_string($processedValue) || is_int($processedValue) || $processedValue instanceof Carbon || $processedValue === null) {
             $this->value = $processedValue;
         }
     }
@@ -229,6 +233,7 @@ class Filter
                 if (! is_array($current) || ! isset($current[$key])) {
                     return $value;
                 }
+
                 $current = $current[$key];
             }
 
@@ -481,7 +486,7 @@ class Filter
      */
     public static function relationship(string $relationship, string $attribute, string $operator = self::OPERATOR_EQUALS, ?string $filterBy = null): self
     {
-        $filter = new self("{$relationship}.{$attribute}", $operator, $filterBy);
+        $filter = new self(sprintf('%s.%s', $relationship, $attribute), $operator, $filterBy);
         $filter->relationship = $relationship;
         $filter->attribute = $attribute;
 
@@ -712,8 +717,8 @@ class Filter
 
         try {
             return new Carbon($value);
-        } catch (Exception $e) {
-            throw new InvalidArgumentException("Invalid date value: {$value}", 0, $e);
+        } catch (Exception $exception) {
+            throw new InvalidArgumentException('Invalid date value: '.$value, 0, $exception);
         }
     }
 
@@ -747,6 +752,7 @@ class Filter
         if ($this->isEmptyOrZero($this->relationship)) {
             throw new InvalidArgumentException('The with() method can only be used with relationship filters.');
         }
+
         $this->withRelationship = true;
 
         return $this;
@@ -772,6 +778,7 @@ class Filter
         if ($this->isEmptyOrZero($this->relationship)) {
             throw new InvalidArgumentException('The whereAny() method can only be used with relationship filters.');
         }
+
         $this->conditionalLogic = 'any';
         $this->conditionalConditions = $conditions;
 
@@ -790,6 +797,7 @@ class Filter
         if ($this->isEmptyOrZero($this->relationship)) {
             throw new InvalidArgumentException('The whereAll() method can only be used with relationship filters.');
         }
+
         $this->conditionalLogic = 'all';
         $this->conditionalConditions = $conditions;
 
@@ -808,6 +816,7 @@ class Filter
         if ($this->isEmptyOrZero($this->relationship)) {
             throw new InvalidArgumentException('The whereNone() method can only be used with relationship filters.');
         }
+
         $this->conditionalLogic = 'none';
         $this->conditionalConditions = $conditions;
 
@@ -850,9 +859,9 @@ class Filter
     protected function getJsonAttributeExpression(): string
     {
         return match ($this->getDatabaseDriver()) {
-            'mysql' => "{$this->attribute}->>'$.{$this->jsonPath}'",
-            'sqlite' => "json_extract({$this->attribute}, '$.{$this->jsonPath}')",
-            'pgsql' => "{$this->attribute}->>'{$this->jsonPath}'",
+            'mysql' => sprintf("%s->>'\$.%s'", $this->attribute, $this->jsonPath),
+            'sqlite' => sprintf("json_extract(%s, '\$.%s')", $this->attribute, $this->jsonPath),
+            'pgsql' => sprintf("%s->>'%s'", $this->attribute, $this->jsonPath),
             default => $this->attribute
         };
     }

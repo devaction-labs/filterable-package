@@ -23,6 +23,7 @@ it('validates date values correctly', function (): void {
 
     // Valid date
     $filter->setValue('2023-01-01');
+
     expect($filter->getValue())->toBeInstanceOf(Carbon::class);
 
     // Test the convertToCarbon method directly using reflection
@@ -87,6 +88,7 @@ it('validates array values correctly', function (): void {
 
     // Valid string array
     $filter->setValue(['tag1', 'tag2']);
+
     expect($filter->getValue())->toBe(['tag1', 'tag2']);
 
     // Valid mixed string/int array
