@@ -188,6 +188,16 @@ it('creates ilike filter with correct operator', function (): void {
     expect($filter->getOperator())->toBe('ILIKE');
 });
 
+it('applies wildcard pattern to ilike filter value', function (): void {
+    global $filters;
+    $filters = ['name' => 'mario'];
+
+    $filter = Filter::ilike('name');
+    $filter->setValueFromRequest();
+
+    expect($filter->getValue())->toBe('%mario%');
+});
+
 it('detects database drivers correctly', function (): void {
     $filter = Filter::ilike('name');
 

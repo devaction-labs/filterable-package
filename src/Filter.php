@@ -203,6 +203,10 @@ class Filter
                 return str_replace('{{value}}', $value, $this->likePattern);
             }
 
+            if ($this->operator === FilterOperator::ILIKE->value) {
+                return str_replace('{{value}}', $value, $this->likePattern);
+            }
+
             if ($this->operator === FilterOperator::STARTS_WITH->value) {
                 return $value.'%';
             }
