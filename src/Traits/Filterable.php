@@ -488,7 +488,7 @@ trait Filterable
 
         if ($isTsVector && count($columns) === 1) {
             $column = $columns[0];
-            $builder->whereRaw("{$column} @@ websearch_to_tsquery('{$lang}', ?)", [$searchTerm]);
+            $builder->whereRaw(sprintf("%s @@ websearch_to_tsquery('%s', ?)", $column, $lang), [$searchTerm]);
 
             return;
         }
