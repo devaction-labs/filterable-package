@@ -537,7 +537,6 @@ class Filter
     {
         $filter = new self($attribute, $operator, $filterBy);
         $filter->setJsonPath($path);
-        $filter->setValueFromRequest();
 
         return $filter;
     }
