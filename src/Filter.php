@@ -542,10 +542,18 @@ class Filter
     /**
      * Set the JSON path for this filter
      *
-     * @param  string  $path  The path to the nested JSON property
+     * @param  string  $path  The path to the nested JSON property (alphanumeric, dots, underscores, and brackets only)
+     *
+     * @throws InvalidArgumentException If the path contains invalid characters
      */
     public function setJsonPath(string $path): self
     {
+        if (! preg_match('/^[a-zA-Z0-9_.\[\]]+$/', $path)) {
+            throw new InvalidArgumentException(
+                sprintf('Invalid JSON path [%s]. Only alphanumeric characters, dots, underscores, and brackets are allowed.', $path)
+            );
+        }
+
         $this->jsonPath = $path;
 
         return $this;
