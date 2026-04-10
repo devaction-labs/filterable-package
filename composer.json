@@ -44,6 +44,13 @@
             "Tests\\": "tests/"
         }
     },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "DevactionLabs\\FilterablePackage\\FilterableServiceProvider"
+            ]
+        }
+    },
     "minimum-stability": "stable",
     "prefer-stable": true,
     "config": {
