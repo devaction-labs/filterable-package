@@ -445,6 +445,21 @@ trait Filterable
     }
 
     /**
+     * Validate that a column name is safe to interpolate into raw SQL.
+     * Allows: letters, digits, underscores, and a single dot (schema.table or table.column).
+     *
+     * @throws InvalidArgumentException
+     */
+    private function assertSafeColumnName(string $column): void
+    {
+        if (! preg_match('/^[a-zA-Z0-9_]+(\.[a-zA-Z0-9_]+)?$/', $column)) {
+            throw new \InvalidArgumentException(
+                sprintf('Invalid column name [%s] for full-text search. Only alphanumeric characters, underscores, and a single dot are allowed.', $column)
+            );
+        }
+    }
+
+    /**
      * Apply PostgreSQL full-text search
      *
      * @param  array<int, string>  $columns
@@ -453,12 +468,21 @@ trait Filterable
     {
         $lang = $language ?? Config::get('app.fulltext_language', 'simple');
 
+        if (! preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', (string) $lang)) {
+            throw new \InvalidArgumentException(
+                sprintf('Invalid full-text search language [%s]. Only alphanumeric characters and underscores are allowed.', $lang)
+            );
+        }
+
         if ($isTsVector && count($columns) === 1) {
             $column = $columns[0];
+            $this->assertSafeColumnName($column);
             $builder->whereRaw(sprintf("%s @@ websearch_to_tsquery('%s', ?)", $column, $lang), [$searchTerm]);
 
             return;
         }
+
+        array_walk($columns, fn (string $column) => $this->assertSafeColumnName($column));
 
         $tsVector = implode(' || ', array_map(
             static fn (string $column): string => sprintf("to_tsvector('%s', COALESCE(%s, ''))", $lang, $column),
