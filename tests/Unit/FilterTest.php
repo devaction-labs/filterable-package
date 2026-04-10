@@ -45,7 +45,7 @@ it('can set and get a filter value', function (): void {
 
 it('throws exception for invalid array value in filter', function (): void {
     $filter = Filter::exact('tags');
-    $filter->setValue(['tag1', []]); // Use nested array which is definitely invalid
+    $filter->setValue(['tag1', []]);
 })->throws(InvalidArgumentException::class);
 
 it('can create a json filter com exact match', function (): void {

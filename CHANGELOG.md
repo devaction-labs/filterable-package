@@ -2,6 +2,30 @@
 
 All notable changes to `filterable-package` will be documented in this file.
 
+## 2.1.0 - 2026-04-10
+
+### Added
+- **Laravel 13 support**: `illuminate/*` constraints expanded to `^11|^12|^13`
+
+### Security
+- **JSON path injection fix**: `setJsonPath()` now validates the path with a strict regex — only alphanumeric characters, dots, underscores, and brackets are accepted. Invalid paths throw `InvalidArgumentException`.
+- **Full-text column injection fix**: Column names passed to `Filter::fullText()` are validated before interpolation into PostgreSQL `whereRaw()` queries.
+- **Full-text language injection fix**: The language parameter in PostgreSQL full-text search is validated to only allow alphanumeric characters and underscores.
+- **Operator injection fix**: `Filter::generic()` now validates the operator via `FilterOperator::from()`, rejecting any value not defined in the enum.
+
+### Performance
+- Removed static `$cachedDatabaseDriver` property — the static cache caused test interference in multi-database scenarios and could return stale results in multi-tenant applications. The driver is now cached per-instance.
+- Removed unbounded `$validationCache` in `Filterable` trait — the MD5+`json_encode` overhead for caching trivial `in_array()` results was replaced with direct inline checks.
+- Removed redundant `setValueFromRequest()` call in `Filter::json()` factory — the constructor already calls it; JSON extraction happens lazily in `getValue()`.
+
+### Changed
+- Dependency updates: `phpunit` → 12.5.16, `phpstan` → 2.1.46, `pest` → 4.5.0, `rector` → 2.4.1, `symfony/*` → 7.4.8, `nesbot/carbon` → 3.11.4.
+
+### Upgrading from 2.0.x
+- No breaking changes for existing users on Laravel 11/12.
+- `Filter::generic()` now throws `InvalidArgumentException` for operators not present in `FilterOperator`. If you were passing raw SQL operators, migrate to the corresponding enum case.
+- `Filter::json()` with an empty or unsafe path now throws `InvalidArgumentException` instead of silently ignoring it.
+
 ## 1.1.4 - 2025-09-30
 
 ### Changed

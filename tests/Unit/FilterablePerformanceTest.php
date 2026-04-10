@@ -35,20 +35,15 @@ class FilterablePerformanceTest extends TestCase
 
     public function test_relationship_load_optimization(): void
     {
-        // Create filters with same relationship to test deduplication
         $filter1 = $this->createRelationshipFilter('user', 'name', 'John', true);
         $filter2 = $this->createRelationshipFilter('user', 'email', 'john@example.com', true);
         $filter3 = $this->createRelationshipFilter('user', 'age', 30, true);
-
-        // In non-optimized code, we'd expect array_unique to be called
-        // In optimized code, we use array keys which avoids duplicates
 
         $this->query->shouldReceive('with')
             ->once()
             ->with(['user'])
             ->andReturnSelf();
 
-        // The trait groups filters by relationship, so 3 filters for 'user' = 1 whereHas call
         $this->query->shouldReceive('whereHas')
             ->once()
             ->andReturnSelf();
@@ -60,19 +55,15 @@ class FilterablePerformanceTest extends TestCase
 
     public function test_direct_filter_optimization(): void
     {
-        // Set up multiple direct filters
         $filter1 = $this->createDirectFilter('name', 'John');
         $filter2 = $this->createDirectFilter('email', 'john@example.com');
 
-        // Test that attribute resolution cache works
-        // We call scopeFilterable twice with 2 filters each = 4 where calls total
         $this->query->shouldReceive('where')
             ->times(4)
             ->andReturnSelf();
 
         $result = $this->model->scopeFilterable($this->query, [$filter1, $filter2]);
 
-        // Apply the same filters again - attributes should be cached
         $result = $this->model->scopeFilterable($this->query, [$filter1, $filter2]);
 
         $this->assertSame($this->query, $result);
@@ -80,7 +71,6 @@ class FilterablePerformanceTest extends TestCase
 
     public function test_simple_relationship_optimization(): void
     {
-        // This test checks if the optimized version uses a simple where for basic equality filters
         $filter = $this->createRelationshipFilter('user', 'name', 'John', false);
 
         $this->query->shouldReceive('whereHas')
@@ -105,7 +95,6 @@ class FilterablePerformanceTest extends TestCase
 
     public function test_conditional_logic_optimization(): void
     {
-        // Test the optimized conditional logic handler
         $filter = $this->createConditionalFilter('user', 'any', [
             ['name', '=', 'John'],
             ['email', '=', 'john@example.com'],
@@ -134,7 +123,6 @@ class FilterablePerformanceTest extends TestCase
         $relationshipFiltersCount = 0;
         $directFiltersCount = 0;
 
-        // Create 50 filters to test performance with larger datasets
         for ($i = 0; $i < 50; $i++) {
             if ($i % 3 === 0) {
                 $filters[] = $this->createRelationshipFilter('user', 'field'.$i, 'value'.$i, $i % 2 === 0);
@@ -145,17 +133,14 @@ class FilterablePerformanceTest extends TestCase
             }
         }
 
-        // Set up expectations for the filters
         $this->query->shouldReceive('where')
             ->times($directFiltersCount)
             ->andReturnSelf();
 
-        // All relationship filters use 'user', so 1 whereHas call
         $this->query->shouldReceive('whereHas')
             ->once()
             ->andReturnSelf();
 
-        // Some relationship filters have shouldWith = true
         $this->query->shouldReceive('with')
             ->zeroOrMoreTimes()
             ->andReturnSelf();
@@ -165,9 +150,8 @@ class FilterablePerformanceTest extends TestCase
         $this->model->scopeFilterable($this->query, $filters);
 
         $end = microtime(true);
-        $executionTime = ($end - $start) * 1000; // Convert to milliseconds
+        $executionTime = ($end - $start) * 1000;
 
-        // Just verify execution completes in a reasonable time
         $this->assertLessThan(500, $executionTime, 'Filtering should complete in less than 500ms');
     }
 
