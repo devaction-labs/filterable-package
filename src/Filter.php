@@ -94,8 +94,6 @@ class Filter
 
     protected ?string $databaseDriver = null;
 
-    protected static ?string $cachedDatabaseDriver = null;
-
     protected bool $withRelationship = false;
 
     protected ?string $conditionalLogic = null;
@@ -1045,14 +1043,13 @@ class Filter
             return $this->databaseDriver;
         }
 
-        if (self::$cachedDatabaseDriver === null) {
-            $configResult = function_exists('config') ? config('database.default') : null;
-            $envResult = getenv('DATABASE_DRIVER') ?: null;
-            $driver = $configResult ?? $envResult ?? 'mysql';
-            self::$cachedDatabaseDriver = is_string($driver) ? $driver : 'mysql';
-        }
+        $configResult = function_exists('config') ? config('database.default') : null;
+        $envResult = getenv('DATABASE_DRIVER') ?: null;
+        $driver = $configResult ?? $envResult ?? 'mysql';
 
-        return self::$cachedDatabaseDriver;
+        $this->databaseDriver = is_string($driver) ? $driver : 'mysql';
+
+        return $this->databaseDriver;
     }
 
     /**
