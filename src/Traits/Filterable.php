@@ -453,7 +453,7 @@ trait Filterable
     private function assertSafeColumnName(string $column): void
     {
         if (! preg_match('/^[a-zA-Z0-9_]+(\.[a-zA-Z0-9_]+)?$/', $column)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 sprintf('Invalid column name [%s] for full-text search. Only alphanumeric characters, underscores, and a single dot are allowed.', $column)
             );
         }
@@ -469,7 +469,7 @@ trait Filterable
         $lang = $language ?? Config::get('app.fulltext_language', 'simple');
 
         if (! preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', (string) $lang)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 sprintf('Invalid full-text search language [%s]. Only alphanumeric characters and underscores are allowed.', $lang)
             );
         }
