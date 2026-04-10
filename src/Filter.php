@@ -94,8 +94,6 @@ class Filter
 
     protected ?string $databaseDriver = null;
 
-    protected static ?string $cachedDatabaseDriver = null;
-
     protected bool $withRelationship = false;
 
     protected ?string $conditionalLogic = null;
@@ -329,11 +327,23 @@ class Filter
      * Create a new filter with a custom operator
      *
      * @param  string  $attribute  The database column to filter
-     * @param  string  $operator  SQL comparison operator
+     * @param  string  $operator  SQL comparison operator (must be a valid FilterOperator value)
      * @param  string|null  $filterBy  The request parameter to use for filtering
+     *
+     * @throws InvalidArgumentException If the operator is not a valid FilterOperator value
      */
     public static function generic(string $attribute, string $operator, ?string $filterBy = null): self
     {
+        try {
+            FilterOperator::from($operator);
+        } catch (\ValueError $e) {
+            throw new InvalidArgumentException(
+                sprintf('Invalid operator [%s]. Use a valid FilterOperator value.', $operator),
+                0,
+                $e
+            );
+        }
+
         return new self($attribute, $operator, $filterBy);
     }
 
@@ -537,7 +547,6 @@ class Filter
     {
         $filter = new self($attribute, $operator, $filterBy);
         $filter->setJsonPath($path);
-        $filter->setValueFromRequest();
 
         return $filter;
     }
@@ -545,10 +554,18 @@ class Filter
     /**
      * Set the JSON path for this filter
      *
-     * @param  string  $path  The path to the nested JSON property
+     * @param  string  $path  The path to the nested JSON property (alphanumeric, dots, underscores, and brackets only)
+     *
+     * @throws InvalidArgumentException If the path contains invalid characters
      */
     public function setJsonPath(string $path): self
     {
+        if (! preg_match('/^[a-zA-Z0-9_.\[\]]+$/', $path)) {
+            throw new InvalidArgumentException(
+                sprintf('Invalid JSON path [%s]. Only alphanumeric characters, dots, underscores, and brackets are allowed.', $path)
+            );
+        }
+
         $this->jsonPath = $path;
 
         return $this;
@@ -1046,14 +1063,13 @@ class Filter
             return $this->databaseDriver;
         }
 
-        if (self::$cachedDatabaseDriver === null) {
-            $configResult = function_exists('config') ? config('database.default') : null;
-            $envResult = getenv('DATABASE_DRIVER') ?: null;
-            $driver = $configResult ?? $envResult ?? 'mysql';
-            self::$cachedDatabaseDriver = is_string($driver) ? $driver : 'mysql';
-        }
+        $configResult = function_exists('config') ? config('database.default') : null;
+        $envResult = getenv('DATABASE_DRIVER') ?: null;
+        $driver = $configResult ?? $envResult ?? 'mysql';
 
-        return self::$cachedDatabaseDriver;
+        $this->databaseDriver = is_string($driver) ? $driver : 'mysql';
+
+        return $this->databaseDriver;
     }
 
     /**

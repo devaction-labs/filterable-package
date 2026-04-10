@@ -13,7 +13,6 @@ use Illuminate\Database\Query\Expression;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
-use JsonException;
 use ValueError;
 
 trait Filterable
@@ -25,9 +24,6 @@ trait Filterable
 
     /** @var array<string, string> */
     protected array $filterMap = [];
-
-    /** @var array<string, bool> */
-    private array $validationCache = [];
 
     /** @var array<string, string> */
     private array $attributeCache = [];
@@ -87,17 +83,11 @@ trait Filterable
         };
     }
 
-    /**
-     * @throws JsonException
-     */
     public function scopeFiltrable(Builder $builder, array $filters): Builder
     {
         return $this->scopeFilterable($builder, $filters);
     }
 
-    /**
-     * @throws JsonException
-     */
     public function scopeFilterable(Builder $builder, array $filters): Builder
     {
         [$relationshipFilters, $directFilters, $relationshipsToLoad] = $this->categorizeFilters($filters);
@@ -117,8 +107,6 @@ trait Filterable
      *
      * @param  array<int, Filter>  $filters
      * @return array{0: array<int, Filter>, 1: array<int, Filter>, 2: array<string, bool>}
-     *
-     * @throws JsonException
      */
     private function categorizeFilters(array $filters): array
     {
@@ -156,18 +144,10 @@ trait Filterable
 
     /**
      * Check if a relationship value is valid
-     *
-     * @throws JsonException
      */
     private function isValidRelationship(?string $relationship): bool
     {
-        $cacheKey = md5(json_encode($relationship ?? 'null', JSON_THROW_ON_ERROR));
-
-        if (! isset($this->validationCache[$cacheKey])) {
-            $this->validationCache[$cacheKey] = ! in_array($relationship, [null, '', '0'], true);
-        }
-
-        return $this->validationCache[$cacheKey];
+        return ! in_array($relationship, [null, '', '0'], true);
     }
 
     /**
@@ -279,8 +259,6 @@ trait Filterable
 
     /**
      * Apply filters with conditional logic
-     *
-     * @throws JsonException
      */
     private function applyFiltersWithConditionalLogic(Builder $query, array $filters): void
     {
@@ -290,8 +268,6 @@ trait Filterable
 
     /**
      * Collect conditions from filters
-     *
-     * @throws JsonException
      */
     private function collectConditions(array $filters): array
     {
@@ -312,19 +288,10 @@ trait Filterable
 
     /**
      * Check if a filter has conditional logic
-     *
-     * @throws JsonException
      */
     private function hasFilterConditionalLogic(Filter $filter): bool
     {
-        $logic = $filter->getConditionalLogic();
-        $cacheKey = 'logic_'.md5(json_encode($logic ?? 'null', JSON_THROW_ON_ERROR));
-
-        if (! isset($this->validationCache[$cacheKey])) {
-            $this->validationCache[$cacheKey] = ! in_array($logic, [null, '', '0'], true);
-        }
-
-        return $this->validationCache[$cacheKey];
+        return ! in_array($filter->getConditionalLogic(), [null, '', '0'], true);
     }
 
     /**
@@ -478,6 +445,21 @@ trait Filterable
     }
 
     /**
+     * Validate that a column name is safe to interpolate into raw SQL.
+     * Allows: letters, digits, underscores, and a single dot (schema.table or table.column).
+     *
+     * @throws InvalidArgumentException
+     */
+    private function assertSafeColumnName(string $column): void
+    {
+        if (! preg_match('/^[a-zA-Z0-9_]+(\.[a-zA-Z0-9_]+)?$/', $column)) {
+            throw new \InvalidArgumentException(
+                sprintf('Invalid column name [%s] for full-text search. Only alphanumeric characters, underscores, and a single dot are allowed.', $column)
+            );
+        }
+    }
+
+    /**
      * Apply PostgreSQL full-text search
      *
      * @param  array<int, string>  $columns
@@ -486,12 +468,21 @@ trait Filterable
     {
         $lang = $language ?? Config::get('app.fulltext_language', 'simple');
 
+        if (! preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', (string) $lang)) {
+            throw new \InvalidArgumentException(
+                sprintf('Invalid full-text search language [%s]. Only alphanumeric characters and underscores are allowed.', $lang)
+            );
+        }
+
         if ($isTsVector && count($columns) === 1) {
             $column = $columns[0];
+            $this->assertSafeColumnName($column);
             $builder->whereRaw(sprintf("%s @@ websearch_to_tsquery('%s', ?)", $column, $lang), [$searchTerm]);
 
             return;
         }
+
+        array_walk($columns, fn (string $column) => $this->assertSafeColumnName($column));
 
         $tsVector = implode(' || ', array_map(
             static fn (string $column): string => sprintf("to_tsvector('%s', COALESCE(%s, ''))", $lang, $column),
