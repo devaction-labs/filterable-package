@@ -327,11 +327,23 @@ class Filter
      * Create a new filter with a custom operator
      *
      * @param  string  $attribute  The database column to filter
-     * @param  string  $operator  SQL comparison operator
+     * @param  string  $operator  SQL comparison operator (must be a valid FilterOperator value)
      * @param  string|null  $filterBy  The request parameter to use for filtering
+     *
+     * @throws InvalidArgumentException If the operator is not a valid FilterOperator value
      */
     public static function generic(string $attribute, string $operator, ?string $filterBy = null): self
     {
+        try {
+            FilterOperator::from($operator);
+        } catch (\ValueError $e) {
+            throw new InvalidArgumentException(
+                sprintf('Invalid operator [%s]. Use a valid FilterOperator value.', $operator),
+                0,
+                $e
+            );
+        }
+
         return new self($attribute, $operator, $filterBy);
     }
 
