@@ -46,11 +46,11 @@ it('uses isEmptyOrZero helper method correctly', function (): void {
     $filter = Filter::json('data', 'user.name')->setDatabaseDriver('mysql');
     expect($filter->getAttribute())->toBe("data->>'$.user.name'");
 
-    // Test with empty json path
-    $filter = Filter::json('data', '')->setDatabaseDriver('mysql');
-    expect($filter->getAttribute())->toBe('data');
+    // Test with invalid json paths — must throw
+    expect(fn () => Filter::json('data', ''))->toThrow(InvalidArgumentException::class);
+    expect(fn () => Filter::json('data', "user'; DROP TABLE users; --"))->toThrow(InvalidArgumentException::class);
 
-    // Test with null json path
+    // Without json path, use exact()
     $filter = Filter::exact('data')->setDatabaseDriver('mysql');
     expect($filter->getAttribute())->toBe('data');
 });
