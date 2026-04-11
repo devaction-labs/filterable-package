@@ -13,7 +13,7 @@ class FilterableServiceProvider extends ServiceProvider
             $this->commands([McpServeCommand::class]);
 
             $this->publishes([
-                __DIR__.'/../stubs/mcp.json' => base_path('.mcp.json'),
+                __DIR__.'/../stubs/mcp.json' => $this->app->basePath('.mcp.json'),
             ], 'filterable-mcp');
         }
     }

@@ -4,7 +4,9 @@ namespace DevactionLabs\FilterablePackage\MCP\Tools;
 
 use DevactionLabs\FilterablePackage\MCP\Contracts\Tool;
 use DevactionLabs\FilterablePackage\Traits\Filterable;
+use Illuminate\Support\Facades\App;
 use ReflectionClass;
+use SplFileInfo;
 use Throwable;
 
 class ListFilterableModelsTool implements Tool
@@ -30,7 +32,7 @@ class ListFilterableModelsTool implements Tool
 
     public function execute(array $args): string
     {
-        $modelsPath = base_path('app/Models');
+        $modelsPath = App::basePath('app/Models');
 
         if (! is_dir($modelsPath)) {
             return 'No app/Models directory found in this project.';
@@ -59,22 +61,28 @@ class ListFilterableModelsTool implements Tool
     private function scanDirectory(string $path): array
     {
         $found = [];
+        /** @var \RecursiveIteratorIterator<\RecursiveDirectoryIterator> $iterator */
         $iterator = new \RecursiveIteratorIterator(
             new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS)
         );
 
         foreach ($iterator as $file) {
-            if ($file->getExtension() !== 'php') {
+            if (! ($file instanceof SplFileInfo) || $file->getExtension() !== 'php') {
                 continue;
             }
 
-            $class = $this->resolveClassName((string) $file->getRealPath());
+            $realPath = $file->getRealPath();
+            if ($realPath === false) {
+                continue;
+            }
+
+            $class = $this->resolveClassName($realPath);
             if ($class === null) {
                 continue;
             }
 
             if ($this->usesFilterableTrait($class)) {
-                $found[$class] = str_replace(base_path().'/', '', (string) $file->getRealPath());
+                $found[$class] = str_replace(App::basePath().'/', '', $realPath);
             }
         }
 
@@ -115,7 +123,10 @@ class ListFilterableModelsTool implements Tool
         }
     }
 
-    /** @return array<int, string> */
+    /**
+     * @param  ReflectionClass<object>  $class
+     * @return array<int, string>
+     */
     private function getAllTraits(ReflectionClass $class): array
     {
         $traits = array_keys($class->getTraits());

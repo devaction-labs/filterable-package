@@ -46,10 +46,11 @@ class GenerateFiltersTool implements Tool
 
     public function execute(array $args): string
     {
-        $class = $this->resolveClass($args['model'] ?? '');
+        $modelArg = isset($args['model']) && is_string($args['model']) ? $args['model'] : '';
+        $class = $this->resolveClass($modelArg);
 
         if ($class === null) {
-            return "Model '{$args['model']}' not found. Use list_filterable_models to see available models.";
+            return "Model '{$modelArg}' not found. Use list_filterable_models to see available models.";
         }
 
         /** @var Model $instance */
@@ -211,7 +212,8 @@ class GenerateFiltersTool implements Tool
     private function getRelationships(string $class, Model $instance): array
     {
         $relationships = [];
-        $reflector = new ReflectionClass($class);
+        /** @var ReflectionClass<Model> $reflector */
+        $reflector = new ReflectionClass($instance);
 
         foreach ($reflector->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
             if ($method->class !== $class || $method->getNumberOfParameters() > 0) {
@@ -241,7 +243,11 @@ class GenerateFiltersTool implements Tool
         return strtolower((string) preg_replace('/(?<!^)[A-Z]/', '-$0', $class)).'s';
     }
 
-    /** @return array<int, string> */
+    /**
+     * @param  array<string, string>  $columns
+     * @param  array<string, string>  $casts
+     * @return array<int, string>
+     */
     private function buildExampleParams(array $columns, array $casts): array
     {
         $params = [];

@@ -38,10 +38,11 @@ class GetModelSchemaTool implements Tool
 
     public function execute(array $args): string
     {
-        $class = $this->resolveClass($args['model'] ?? '');
+        $modelArg = isset($args['model']) && is_string($args['model']) ? $args['model'] : '';
+        $class = $this->resolveClass($modelArg);
 
         if ($class === null) {
-            return "Model '{$args['model']}' not found. Use list_filterable_models to see available models.";
+            return "Model '{$modelArg}' not found. Use list_filterable_models to see available models.";
         }
 
         /** @var Model $instance */
@@ -131,7 +132,14 @@ class GetModelSchemaTool implements Tool
     private function isNullable(string $table, string $column): bool
     {
         try {
-            return ! Schema::getColumns($table)[$column]['nullable'] === false;
+            $columns = Schema::getColumns($table);
+            foreach ($columns as $col) {
+                if (is_array($col) && ($col['name'] ?? '') === $column) {
+                    return (bool) ($col['nullable'] ?? false);
+                }
+            }
+
+            return false;
         } catch (Throwable) {
             return false;
         }
@@ -141,7 +149,8 @@ class GetModelSchemaTool implements Tool
     private function getRelationships(string $class, Model $instance): array
     {
         $relationships = [];
-        $reflector = new ReflectionClass($class);
+        /** @var ReflectionClass<Model> $reflector */
+        $reflector = new ReflectionClass($instance);
 
         foreach ($reflector->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
             if ($method->class !== $class || $method->getNumberOfParameters() > 0) {

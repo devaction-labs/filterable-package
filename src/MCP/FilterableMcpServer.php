@@ -39,11 +39,14 @@ class FilterableMcpServer
                 continue;
             }
 
-            $request = json_decode($line, true);
+            $decoded = json_decode($line, true);
 
-            if (! is_array($request)) {
+            if (! is_array($decoded)) {
                 continue;
             }
+
+            /** @var array<string, mixed> $request */
+            $request = $decoded;
 
             $response = $this->dispatch($request);
 
@@ -53,18 +56,21 @@ class FilterableMcpServer
         }
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @param  array<string, mixed>  $request
+     * @return array<string, mixed>
+     */
     private function dispatch(array $request): array
     {
         $id = $request['id'] ?? null;
-        $method = $request['method'] ?? '';
+        $method = isset($request['method']) && is_string($request['method']) ? $request['method'] : '';
 
         return match ($method) {
             'initialize' => $this->handleInitialize($id),
             'notifications/initialized' => [],
             'ping' => $this->ok($id, new \stdClass),
             'tools/list' => $this->handleToolsList($id),
-            'tools/call' => $this->handleToolCall($id, $request['params'] ?? []),
+            'tools/call' => $this->handleToolCall($id, isset($request['params']) && is_array($request['params']) ? $request['params'] : []),
             default => $this->error($id, -32601, "Method not found: {$method}"),
         };
     }
@@ -94,11 +100,14 @@ class FilterableMcpServer
         ]);
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @param  array<string, mixed>  $params
+     * @return array<string, mixed>
+     */
     private function handleToolCall(mixed $id, array $params): array
     {
-        $name = $params['name'] ?? '';
-        $args = $params['arguments'] ?? [];
+        $name = isset($params['name']) && is_string($params['name']) ? $params['name'] : '';
+        $args = isset($params['arguments']) && is_array($params['arguments']) ? $params['arguments'] : [];
 
         foreach ($this->tools as $tool) {
             if ($tool->name() !== $name) {
