@@ -4,9 +4,13 @@ namespace DevactionLabs\FilterablePackage\MCP\Tools;
 
 use DevactionLabs\FilterablePackage\MCP\Contracts\Tool;
 use DevactionLabs\FilterablePackage\Traits\Filterable;
+use FilesystemIterator;
 use Illuminate\Support\Facades\App;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
 use ReflectionClass;
 use SplFileInfo;
+use stdClass;
 use Throwable;
 
 class ListFilterableModelsTool implements Tool
@@ -25,7 +29,7 @@ class ListFilterableModelsTool implements Tool
     {
         return [
             'type' => 'object',
-            'properties' => new \stdClass,
+            'properties' => new stdClass,
             'required' => [],
         ];
     }
@@ -41,13 +45,13 @@ class ListFilterableModelsTool implements Tool
         $found = $this->scanDirectory($modelsPath);
 
         if ($found === []) {
-            return "No models using the Filterable trait were found in {$modelsPath}.";
+            return sprintf('No models using the Filterable trait were found in %s.', $modelsPath);
         }
 
         $lines = ['Models using the Filterable trait:', ''];
         foreach ($found as $class => $file) {
-            $lines[] = "  - {$class}";
-            $lines[] = "    File: {$file}";
+            $lines[] = '  - '.$class;
+            $lines[] = '    File: '.$file;
         }
 
         $lines[] = '';
@@ -61,13 +65,17 @@ class ListFilterableModelsTool implements Tool
     private function scanDirectory(string $path): array
     {
         $found = [];
-        /** @var \RecursiveIteratorIterator<\RecursiveDirectoryIterator> $iterator */
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS)
+        /** @var RecursiveIteratorIterator<RecursiveDirectoryIterator> $iterator */
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS)
         );
 
         foreach ($iterator as $file) {
-            if (! ($file instanceof SplFileInfo) || $file->getExtension() !== 'php') {
+            if (! ($file instanceof SplFileInfo)) {
+                continue;
+            }
+
+            if ($file->getExtension() !== 'php') {
                 continue;
             }
 
@@ -132,7 +140,7 @@ class ListFilterableModelsTool implements Tool
         $traits = array_keys($class->getTraits());
 
         if ($class->getParentClass() !== false) {
-            $traits = array_merge($traits, $this->getAllTraits($class->getParentClass()));
+            return array_merge($traits, $this->getAllTraits($class->getParentClass()));
         }
 
         return $traits;

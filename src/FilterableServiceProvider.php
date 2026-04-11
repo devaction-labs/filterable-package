@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace DevactionLabs\FilterablePackage;
 
 use DevactionLabs\FilterablePackage\Console\Commands\McpServeCommand;

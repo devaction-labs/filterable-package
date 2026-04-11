@@ -12,13 +12,13 @@ use Throwable;
 
 class GenerateFiltersTool implements Tool
 {
-    private const TEXT_TYPES = ['string', 'text', 'char', 'varchar', 'mediumtext', 'longtext', 'tinytext'];
+    private const array TEXT_TYPES = ['string', 'text', 'char', 'varchar', 'mediumtext', 'longtext', 'tinytext'];
 
-    private const DATE_TYPES = ['date', 'datetime', 'timestamp', 'timestamptz', 'datetimetz'];
+    private const array DATE_TYPES = ['date', 'datetime', 'timestamp', 'timestamptz', 'datetimetz'];
 
-    private const INTEGER_TYPES = ['integer', 'bigint', 'smallint', 'tinyint', 'int'];
+    private const array INTEGER_TYPES = ['integer', 'bigint', 'smallint', 'tinyint', 'int'];
 
-    private const DECIMAL_TYPES = ['decimal', 'float', 'double', 'numeric'];
+    private const array DECIMAL_TYPES = ['decimal', 'float', 'double', 'numeric'];
 
     public function name(): string
     {
@@ -50,7 +50,7 @@ class GenerateFiltersTool implements Tool
         $class = $this->resolveClass($modelArg);
 
         if ($class === null) {
-            return "Model '{$modelArg}' not found. Use list_filterable_models to see available models.";
+            return sprintf("Model '%s' not found. Use list_filterable_models to see available models.", $modelArg);
         }
 
         /** @var Model $instance */
@@ -81,17 +81,17 @@ class GenerateFiltersTool implements Tool
         }
 
         if ($filters === []) {
-            return "Could not generate filters for {$class}. Try calling get_model_schema('{$shortClass}') to inspect the model first.";
+            return sprintf("Could not generate filters for %s. Try calling get_model_schema('%s') to inspect the model first.", $class, $shortClass);
         }
 
-        $filterLines = array_map(fn (string $f) => "    {$f}", $filters);
+        $filterLines = array_map(fn (string $f): string => '    '.$f, $filters);
         $filterCode = implode("\n", $filterLines);
 
         $output = [];
-        $output[] = "// Filters for {$shortClass}";
+        $output[] = '// Filters for '.$shortClass;
         $output[] = '// Add to your controller: use DevactionLabs\\FilterablePackage\\Filter;';
         $output[] = '';
-        $output[] = "\${$this->varName($shortClass)} = {$shortClass}::filterable([";
+        $output[] = sprintf('$%s = %s::filterable([', $this->varName($shortClass), $shortClass);
         $output[] = $filterCode;
         $output[] = "])->customPaginate('paginate', 15);";
 
@@ -116,51 +116,51 @@ class GenerateFiltersTool implements Tool
                 $column === 'deleted_at' => null,
                 $column === 'remember_token' => null,
                 $column === 'password' => null,
-                str_ends_with($column, '_at') => "Filter::between('{$column}')->castDate(), // date range",
+                str_ends_with($column, '_at') => sprintf("Filter::between('%s')->castDate(), // date range", $column),
                 default => null,
             };
         }
 
         if (str_ends_with($column, '_id')) {
-            return "Filter::exact('{$column}'), // foreign key exact match";
+            return sprintf("Filter::exact('%s'), // foreign key exact match", $column);
         }
 
         if (in_array($column, ['status', 'type', 'state', 'role', 'gender', 'category'], true) || str_starts_with($column, 'is_') || str_starts_with($column, 'has_')) {
-            return "Filter::in('{$column}'), // accepts comma-separated values: ?filter[{$column}]=val1,val2";
+            return sprintf("Filter::in('%s'), // accepts comma-separated values: ?filter[%s]=val1,val2", $column, $column);
         }
 
         $resolvedType = $cast ?? $type;
 
         if (in_array($resolvedType, self::DATE_TYPES, true) || $resolvedType === 'datetime' || $resolvedType === 'date') {
-            return "Filter::between('{$column}')->castDate(), // date range: ?filter[{$column}]=2024-01-01,2024-12-31";
+            return sprintf("Filter::between('%s')->castDate(), // date range: ?filter[%s]=2024-01-01,2024-12-31", $column, $column);
         }
 
         if (in_array($resolvedType, self::TEXT_TYPES, true)) {
             if (str_contains($column, 'email')) {
-                return "Filter::ilike('{$column}'), // case-insensitive search";
+                return sprintf("Filter::ilike('%s'), // case-insensitive search", $column);
             }
 
             if (str_contains($column, 'name') || str_contains($column, 'title') || str_contains($column, 'description') || str_contains($column, 'slug') || str_contains($column, 'bio')) {
-                return "Filter::ilike('{$column}'), // case-insensitive text search";
+                return sprintf("Filter::ilike('%s'), // case-insensitive text search", $column);
             }
 
-            return "Filter::exact('{$column}'),";
+            return sprintf("Filter::exact('%s'),", $column);
         }
 
         if (in_array($resolvedType, self::INTEGER_TYPES, true)) {
-            return "Filter::between('{$column}'), // numeric range: ?filter[{$column}]=min,max";
+            return sprintf("Filter::between('%s'), // numeric range: ?filter[%s]=min,max", $column, $column);
         }
 
         if (in_array($resolvedType, self::DECIMAL_TYPES, true)) {
-            return "Filter::between('{$column}'), // decimal range: ?filter[{$column}]=min,max";
+            return sprintf("Filter::between('%s'), // decimal range: ?filter[%s]=min,max", $column, $column);
         }
 
         if ($resolvedType === 'boolean') {
-            return "Filter::exact('{$column}'), // boolean: ?filter[{$column}]=1 or 0";
+            return sprintf("Filter::exact('%s'), // boolean: ?filter[%s]=1 or 0", $column, $column);
         }
 
-        if ($resolvedType === 'json' || $resolvedType === 'array' || $resolvedType === 'object') {
-            return "// Filter::json('{$column}', 'nested.key'), // JSON field - specify path";
+        if (in_array($resolvedType, ['json', 'array', 'object'], true)) {
+            return sprintf("// Filter::json('%s', 'nested.key'), // JSON field - specify path", $column);
         }
 
         return null;
@@ -170,7 +170,7 @@ class GenerateFiltersTool implements Tool
     {
         $eagerLoad = in_array($type, ['HasOne', 'BelongsTo'], true) ? '->with()' : '';
 
-        return "Filter::relationship('{$relation}', 'id'){$eagerLoad}, // filter by {$relation} relationship";
+        return sprintf("Filter::relationship('%s', 'id')%s, // filter by %s relationship", $relation, $eagerLoad, $relation);
     }
 
     private function resolveClass(string $model): ?string
@@ -183,7 +183,7 @@ class GenerateFiltersTool implements Tool
             return $model;
         }
 
-        foreach (["App\\Models\\{$model}", "App\\{$model}"] as $candidate) {
+        foreach (['App\Models\\'.$model, 'App\\'.$model] as $candidate) {
             if (class_exists($candidate)) {
                 return $candidate;
             }
@@ -216,7 +216,11 @@ class GenerateFiltersTool implements Tool
         $reflector = new ReflectionClass($instance);
 
         foreach ($reflector->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
-            if ($method->class !== $class || $method->getNumberOfParameters() > 0) {
+            if ($method->class !== $class) {
+                continue;
+            }
+
+            if ($method->getNumberOfParameters() > 0) {
                 continue;
             }
 
@@ -265,10 +269,10 @@ class GenerateFiltersTool implements Tool
             $resolvedType = $casts[$column] ?? $type;
 
             if (in_array($resolvedType, self::TEXT_TYPES, true)) {
-                $params[] = "filter[{$column}]=example";
+                $params[] = sprintf('filter[%s]=example', $column);
                 $count++;
             } elseif (in_array($resolvedType, self::DATE_TYPES, true) || str_ends_with($column, '_at')) {
-                $params[] = "filter[{$column}]=2024-01-01,2024-12-31";
+                $params[] = sprintf('filter[%s]=2024-01-01,2024-12-31', $column);
                 $count++;
             }
         }

@@ -42,7 +42,7 @@ class GetModelSchemaTool implements Tool
         $class = $this->resolveClass($modelArg);
 
         if ($class === null) {
-            return "Model '{$modelArg}' not found. Use list_filterable_models to see available models.";
+            return sprintf("Model '%s' not found. Use list_filterable_models to see available models.", $modelArg);
         }
 
         /** @var Model $instance */
@@ -50,8 +50,8 @@ class GetModelSchemaTool implements Tool
         $table = $instance->getTable();
 
         $lines = [
-            "Model: {$class}",
-            "Table: {$table}",
+            'Model: '.$class,
+            'Table: '.$table,
             '',
         ];
 
@@ -62,10 +62,11 @@ class GetModelSchemaTool implements Tool
             $lines[] = 'Columns:';
             foreach ($columns as $column => $type) {
                 $cast = $casts[$column] ?? null;
-                $castSuffix = $cast ? " (cast: {$cast})" : '';
+                $castSuffix = $cast ? sprintf(' (cast: %s)', $cast) : '';
                 $nullable = $this->isNullable($table, $column) ? ' [nullable]' : '';
-                $lines[] = "  {$column}: {$type}{$castSuffix}{$nullable}";
+                $lines[] = sprintf('  %s: %s%s%s', $column, $type, $castSuffix, $nullable);
             }
+
             $lines[] = '';
         }
 
@@ -79,8 +80,9 @@ class GetModelSchemaTool implements Tool
         if ($relationships !== []) {
             $lines[] = 'Relationships:';
             foreach ($relationships as $name => $type) {
-                $lines[] = "  {$name}: {$type}";
+                $lines[] = sprintf('  %s: %s', $name, $type);
             }
+
             $lines[] = '';
         }
 
@@ -100,8 +102,8 @@ class GetModelSchemaTool implements Tool
         }
 
         $candidates = [
-            "App\\Models\\{$model}",
-            "App\\{$model}",
+            'App\Models\\'.$model,
+            'App\\'.$model,
         ];
 
         foreach ($candidates as $candidate) {
@@ -153,7 +155,11 @@ class GetModelSchemaTool implements Tool
         $reflector = new ReflectionClass($instance);
 
         foreach ($reflector->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
-            if ($method->class !== $class || $method->getNumberOfParameters() > 0) {
+            if ($method->class !== $class) {
+                continue;
+            }
+
+            if ($method->getNumberOfParameters() > 0) {
                 continue;
             }
 

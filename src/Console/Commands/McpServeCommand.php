@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace DevactionLabs\FilterablePackage\Console\Commands;
 
 use DevactionLabs\FilterablePackage\MCP\FilterableMcpServer;
