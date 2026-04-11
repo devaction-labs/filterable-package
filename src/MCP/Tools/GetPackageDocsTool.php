@@ -3,6 +3,7 @@
 namespace DevactionLabs\FilterablePackage\MCP\Tools;
 
 use DevactionLabs\FilterablePackage\MCP\Contracts\Tool;
+use stdClass;
 
 class GetPackageDocsTool implements Tool
 {
@@ -20,7 +21,7 @@ class GetPackageDocsTool implements Tool
     {
         return [
             'type' => 'object',
-            'properties' => new \stdClass,
+            'properties' => new stdClass,
             'required' => [],
         ];
     }

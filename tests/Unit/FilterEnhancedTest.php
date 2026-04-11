@@ -41,8 +41,8 @@ it('uses isEmptyOrZero helper method correctly', function (): void {
     $filter = Filter::json('data', 'user.name')->setDatabaseDriver('mysql');
     expect($filter->getAttribute())->toBe("data->>'$.user.name'");
 
-    expect(fn () => Filter::json('data', ''))->toThrow(InvalidArgumentException::class);
-    expect(fn () => Filter::json('data', "user'; DROP TABLE users; --"))->toThrow(InvalidArgumentException::class);
+    expect(fn (): Filter => Filter::json('data', ''))->toThrow(InvalidArgumentException::class);
+    expect(fn (): Filter => Filter::json('data', "user'; DROP TABLE users; --"))->toThrow(InvalidArgumentException::class);
 
     $filter = Filter::exact('data')->setDatabaseDriver('mysql');
     expect($filter->getAttribute())->toBe('data');
@@ -76,6 +76,7 @@ it('validates array values correctly', function (): void {
     $filter = Filter::in('tags');
 
     $filter->setValue(['tag1', 'tag2']);
+
     expect($filter->getValue())->toBe(['tag1', 'tag2']);
 
     $filter->setValue(['tag1', 2]);

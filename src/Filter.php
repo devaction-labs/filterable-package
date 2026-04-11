@@ -8,6 +8,7 @@ use Exception;
 use Illuminate\Support\Facades\Request;
 use InvalidArgumentException;
 use JsonException;
+use ValueError;
 
 /**
  * Class Filter
@@ -336,11 +337,11 @@ class Filter
     {
         try {
             FilterOperator::from($operator);
-        } catch (\ValueError $e) {
+        } catch (ValueError $valueError) {
             throw new InvalidArgumentException(
                 sprintf('Invalid operator [%s]. Use a valid FilterOperator value.', $operator),
                 0,
-                $e
+                $valueError
             );
         }
 

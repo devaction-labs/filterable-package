@@ -7,18 +7,19 @@ use DevactionLabs\FilterablePackage\MCP\Tools\GenerateFiltersTool;
 use DevactionLabs\FilterablePackage\MCP\Tools\GetModelSchemaTool;
 use DevactionLabs\FilterablePackage\MCP\Tools\GetPackageDocsTool;
 use DevactionLabs\FilterablePackage\MCP\Tools\ListFilterableModelsTool;
+use stdClass;
 use Throwable;
 
 class FilterableMcpServer
 {
-    private const PROTOCOL_VERSION = '2024-11-05';
+    private const string PROTOCOL_VERSION = '2024-11-05';
 
-    private const SERVER_NAME = 'filterable-package';
+    private const string SERVER_NAME = 'filterable-package';
 
-    private const SERVER_VERSION = '1.0.0';
+    private const string SERVER_VERSION = '1.0.0';
 
     /** @var Tool[] */
-    private array $tools;
+    private readonly array $tools;
 
     public function __construct()
     {
@@ -68,10 +69,10 @@ class FilterableMcpServer
         return match ($method) {
             'initialize' => $this->handleInitialize($id),
             'notifications/initialized' => [],
-            'ping' => $this->ok($id, new \stdClass),
+            'ping' => $this->ok($id, new stdClass),
             'tools/list' => $this->handleToolsList($id),
             'tools/call' => $this->handleToolCall($id, isset($request['params']) && is_array($request['params']) ? $request['params'] : []),
-            default => $this->error($id, -32601, "Method not found: {$method}"),
+            default => $this->error($id, -32601, 'Method not found: '.$method),
         };
     }
 
@@ -123,7 +124,7 @@ class FilterableMcpServer
             }
         }
 
-        return $this->error($id, -32601, "Tool not found: {$name}");
+        return $this->error($id, -32601, 'Tool not found: '.$name);
     }
 
     /** @return array<string, mixed> */
