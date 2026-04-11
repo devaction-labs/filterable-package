@@ -1114,6 +1114,88 @@ Filter::exact('created_at', 'date')
    protected array $allowedSorts = ['name', 'created_at', 'price'];
    ```
 
+## AI Agent Integration (MCP)
+
+Since v2.2.0, the package ships with a **Model Context Protocol (MCP) server** that lets AI coding assistants (Claude Code, Cursor, Windsurf, etc.) understand your models and generate correct filter code automatically — without you having to explain the API.
+
+### Setup
+
+Publish the MCP configuration to your project root:
+
+```bash
+php artisan vendor:publish --tag=filterable-mcp
+```
+
+This creates a `.mcp.json` file:
+
+```json
+{
+  "mcpServers": {
+    "filterable": {
+      "command": "php",
+      "args": ["artisan", "filterable:mcp"],
+      "env": {}
+    }
+  }
+}
+```
+
+AI agents that support MCP will automatically discover this server and connect to it when you open the project. No further configuration needed.
+
+### What the agent can do
+
+Once connected, the agent has access to four tools:
+
+| Tool | What it does |
+|---|---|
+| `get_package_docs` | Returns the full package documentation and all filter examples |
+| `list_filterable_models` | Scans `app/Models/` and lists every model that uses the `Filterable` trait |
+| `get_model_schema` | Returns the table columns, types, casts, fillable fields, and relationships for a given model |
+| `generate_filters` | Generates a ready-to-use `filterable([...])` array for a model based on its schema |
+
+### Example interaction
+
+After setup, you can ask the agent naturally:
+
+> "Generate the filter array for the `Order` model"
+
+The agent will:
+1. Call `get_model_schema(Order)` to inspect columns and relationships
+2. Call `generate_filters(Order)` to produce the code
+3. Return something like:
+
+```php
+// Filters for Order
+// Add to your controller: use DevactionLabs\FilterablePackage\Filter;
+
+$orders = Order::filterable([
+    Filter::in('status'),                          // accepts: ?filter[status]=pending,paid
+    Filter::between('total')->castDate(),           // range: ?filter[total]=100,500
+    Filter::between('created_at')->castDate(),      // date range
+    Filter::exact('user_id'),                      // foreign key exact match
+    Filter::relationship('items', 'id'),           // filter by items relationship
+])->customPaginate('paginate', 15);
+```
+
+### Manual start
+
+The MCP server runs over stdio and is started automatically by supporting editors. To start it manually:
+
+```bash
+php artisan filterable:mcp
+```
+
+### IDE support
+
+| Editor / Tool | MCP support |
+|---|---|
+| Claude Code (CLI) | `.mcp.json` auto-discovered |
+| Cursor | Add via Settings → MCP |
+| Windsurf | Add via Settings → MCP |
+| Any MCP-compatible client | Use `php artisan filterable:mcp` as the command |
+
+---
+
 ## Testing
 
 ```bash
