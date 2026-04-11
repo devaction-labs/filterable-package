@@ -219,9 +219,11 @@ class GenerateFiltersTool implements Tool
             if ($method->class !== $class) {
                 continue;
             }
+
             if ($method->getNumberOfParameters() > 0) {
                 continue;
             }
+
             try {
                 $result = $method->invoke($instance);
                 if ($result instanceof Relation) {

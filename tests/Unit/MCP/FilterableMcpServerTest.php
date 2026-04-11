@@ -87,3 +87,20 @@ it('responds to ping', function (): void {
     expect($response['id'])->toBe(6)
         ->and($response)->toHaveKey('result');
 });
+
+it('returns json-rpc error when tool execution throws an exception', function (): void {
+    $server = new FilterableMcpServer;
+
+    // get_model_schema with stdClass: resolveClass returns 'stdClass' (class_exists = true),
+    // then $instance->getTable() is called on a plain stdClass which throws an Error.
+    // This exercises the catch(Throwable) block in handleToolCall (lines 122-123).
+    $response = callDispatch($server, [
+        'jsonrpc' => '2.0',
+        'id' => 7,
+        'method' => 'tools/call',
+        'params' => ['name' => 'get_model_schema', 'arguments' => ['model' => 'stdClass']],
+    ]);
+
+    expect($response)->toHaveKey('error')
+        ->and($response['error']['code'])->toBe(-32000);
+});

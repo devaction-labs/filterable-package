@@ -74,9 +74,11 @@ class ListFilterableModelsTool implements Tool
             if (! ($file instanceof SplFileInfo)) {
                 continue;
             }
+
             if ($file->getExtension() !== 'php') {
                 continue;
             }
+
             $realPath = $file->getRealPath();
             if ($realPath === false) {
                 continue;
