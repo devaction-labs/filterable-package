@@ -4,7 +4,6 @@ namespace Tests\Unit;
 
 use Carbon\Carbon;
 use DevactionLabs\FilterablePackage\Filter;
-use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\Request;
 use InvalidArgumentException;
 use ReflectionClass;
@@ -105,7 +104,7 @@ it('uses match expressions for value transformation', function (): void {
 });
 
 it('applies date modifiers correctly', function (): void {
-    $now = Date::now();
+    $now = Carbon::now();
     $filter = Filter::exact('created_at')->castDate()->setValue($now->format('Y-m-d'));
 
     $date = $filter->getValue();
