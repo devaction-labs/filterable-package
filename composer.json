@@ -27,6 +27,7 @@
         "illuminate/support": "^11|^12|^13"
     },
     "require-dev": {
+        "driftingly/rector-laravel": "^2.3",
         "laravel/pint": "^1.27.0",
         "mockery/mockery": "^1.6.12",
         "pestphp/pest": "^4",

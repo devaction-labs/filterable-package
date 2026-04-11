@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use Rector\Config\RectorConfig;
+use RectorLaravel\Rector\ClassMethod\MakeModelAttributesAndScopesProtectedRector;
+use RectorLaravel\Set\LaravelSetList;
 
 return RectorConfig::configure()
     ->withImportNames(importShortClasses: true)
@@ -18,4 +20,14 @@ return RectorConfig::configure()
         privatization: true,
         earlyReturn: true,
     )
-    ->withPhpSets();
+    ->withPhpSets()
+    ->withSets([
+        LaravelSetList::LARAVEL_CODE_QUALITY,
+        LaravelSetList::LARAVEL_COLLECTION,
+        LaravelSetList::LARAVEL_FACADE_ALIASES_TO_FULL_NAMES,
+    ])
+    ->withSkip([
+        // Package scopes are public API — keeping them public avoids breaking
+        // users who call scopeFilterable() / scopeCustomPaginate() directly.
+        MakeModelAttributesAndScopesProtectedRector::class,
+    ]);
