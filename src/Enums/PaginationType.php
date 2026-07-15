@@ -16,7 +16,7 @@ enum PaginationType: string
     case CURSOR = 'cursor';
 
     /**
-     * Check if the pagination type includes total count
+     * Check if the pagination type includes the total count
      */
     public function includesTotal(): bool
     {
@@ -24,7 +24,7 @@ enum PaginationType: string
     }
 
     /**
-     * Get description of the pagination type
+     * Get a description of the pagination type
      */
     public function description(): string
     {
