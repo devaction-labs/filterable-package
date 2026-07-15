@@ -1179,6 +1179,60 @@ WHERE deadline BETWEEN
 
 ---
 
+### 17. Filter::anyOf() — OR groups (own columns OR relationships)
+
+Every filter passed to `filterable([...])` is combined with **AND**. `Filter::anyOf()` groups several filters with **OR** inside a single, correctly parenthesised condition — so the group stays a single AND-ed condition next to your other filters. The children may freely mix direct columns and relationship filters.
+
+The classic use case is one search box that must match a column on the model **or** a column on a related model:
+
+```php
+use DevactionLabs\FilterablePackage\Filter;
+
+$receipts = GoodsReceipt::filterable([
+    Filter::exact('status'),
+    Filter::anyOf([
+        Filter::like('receipt_number'),
+        Filter::like('invoice_number'),
+        Filter::relationship('items.product', 'sku', 'ILIKE'),
+    ], 'search'),           // shared request key: ?filter[search]=ABC
+])->customPaginate();
+```
+
+**Request:**
+```
+GET /api/receipts?filter[status]=open&filter[search]=ABC
+```
+
+**SQL:**
+```sql
+WHERE "status" = ?
+  AND (
+        ("receipt_number" LIKE ?)
+     OR ("invoice_number" LIKE ?)
+     OR (EXISTS (SELECT * FROM items ... WHERE sku LIKE ?))
+      )
+```
+
+Note how the OR alternatives are wrapped in a single group — a closed receipt that only matches `invoice_number` can never leak past `status = 'open'`.
+
+**Two forms:**
+
+- **Shared key** — pass a second argument, and every child reads the same request parameter. Ideal for a single search input.
+  ```php
+  Filter::anyOf([Filter::like('name'), Filter::like('email')], 'q'); // ?filter[q]=...
+  ```
+- **Independent keys** — omit the second argument, and each child keeps its own request key. Useful for "match A OR B" across distinct inputs.
+  ```php
+  Filter::anyOf([Filter::exact('receipt_number'), Filter::exact('invoice_number')]);
+  // ?filter[receipt_number]=...  OR  ?filter[invoice_number]=...
+  ```
+
+The group is skipped entirely when all of its children are empty, so an empty search box adds no SQL. Only children that actually received a value are ORed.
+
+> **Performance:** the relationship branch compiles to an indexed `EXISTS`. The real cost of `LIKE '%term%'` is the leading wildcard, which forces a full scan regardless of grouping. Prefer `startsWith`/`exact`/`in` where possible, or a full-text/trigram index for true "contains" search at scale.
+
+---
+
 ## Practical Examples
 
 ### E-commerce Product Filtering

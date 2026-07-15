@@ -22,6 +22,20 @@ trait Filterable
     /** @var array<int, string> */
     protected array $allowedSorts = [];
 
+    /**
+     * Maximum items per page accepted from the request. The value can be
+     * overridden globally via config('filterable.max_per_page'). Explicit
+     * developer-supplied per-page values are not capped by this.
+     */
+    protected int $maxPerPage = 100;
+
+    /**
+     * A request sort key must be a plain column identifier (optionally
+     * table-qualified). This rejects the JSON-arrow / quote payloads that
+     * PostgreSQL's order-by grammar would otherwise interpolate unescaped.
+     */
+    private const string SORT_COLUMN_PATTERN = '/^[A-Za-z_]\w*(\.[A-Za-z_]\w*)?$/';
+
     /** @var array<string, string> */
     protected array $filterMap = [];
 
@@ -44,28 +58,14 @@ trait Filterable
         ?array $data = null
     ): Paginator|LengthAwarePaginator|CursorPaginator {
         $data ??= request()->only('per_page', 'sort');
-        $order = 'ASC';
-        $perPage ??= (int) ($data['per_page'] ?? 15);
+        $perPage = $this->resolvePerPage($perPage, $data['per_page'] ?? null);
 
         if ($this->defaultSort && empty($data['sort'])) {
             $data['sort'] = $this->defaultSort;
         }
 
         if (! empty($data['sort'])) {
-            $orderBy = $data['sort'];
-            if ($data['sort'][0] === '-') {
-                $orderBy = substr((string) $data['sort'], 1);
-                $order = 'DESC';
-            }
-
-            if (! empty($this->allowedSorts) && ! in_array($orderBy, $this->allowedSorts, true)) {
-                throw new InvalidArgumentException(sprintf('The sort value [%s] is not acceptable', $orderBy));
-            }
-
-            if (! empty($this->filterMap[$orderBy])) {
-                $orderBy = $this->filterMap[$orderBy];
-            }
-
+            [$orderBy, $order] = $this->resolveSortColumn($data['sort']);
             $builder->orderBy($orderBy, $order);
         }
 
@@ -81,6 +81,71 @@ trait Filterable
             PaginationType::CURSOR => $builder->cursorPaginate($perPage)->appends($data),
             PaginationType::PAGINATE => $builder->paginate($perPage)->appends($data),
         };
+    }
+
+    /**
+     * Resolve a safe per-page value.
+     *
+     * A developer-supplied value is only guarded against zero/negative; a
+     * request-derived value is additionally clamped to the configured maximum
+     * to prevent memory-exhaustion via a huge LIMIT.
+     */
+    private function resolvePerPage(?int $perPage, mixed $requested): int
+    {
+        if ($perPage !== null) {
+            return max(1, $perPage);
+        }
+
+        $value = is_numeric($requested) ? (int) $requested : 15;
+
+        $max = (int) Config::get('filterable.max_per_page', $this->maxPerPage);
+        if ($max < 1) {
+            $max = $this->maxPerPage;
+        }
+
+        return max(1, min($value, $max));
+    }
+
+    /**
+     * Resolve and validate the request sort key.
+     *
+     * @return array{0: string, 1: string} The column and direction (ASC/DESC)
+     *
+     * @throws InvalidArgumentException If the sort value is not a string, is not
+     *                                  a valid column identifier, or is not in
+     *                                  the configured allow-list.
+     */
+    private function resolveSortColumn(mixed $sort): array
+    {
+        if (! is_string($sort)) {
+            throw new InvalidArgumentException('The sort value must be a string.');
+        }
+
+        $order = 'ASC';
+        $orderBy = $sort;
+
+        if ($orderBy !== '' && $orderBy[0] === '-') {
+            $orderBy = substr($orderBy, 1);
+            $order = 'DESC';
+        }
+
+        if (! preg_match(self::SORT_COLUMN_PATTERN, $orderBy)) {
+            throw new InvalidArgumentException(sprintf('The sort value [%s] is not a valid column name.', $orderBy));
+        }
+
+        if (empty($this->allowedSorts)) {
+            if (Config::get('filterable.strict_sorts', false)) {
+                throw new InvalidArgumentException('Sorting is not allowed: configure allowedSorts() to enable it.');
+            }
+        } elseif (! in_array($orderBy, $this->allowedSorts, true)) {
+            throw new InvalidArgumentException(sprintf('The sort value [%s] is not acceptable', $orderBy));
+        }
+
+        if (! empty($this->filterMap[$orderBy])) {
+            $orderBy = $this->filterMap[$orderBy];
+        }
+
+        return [$orderBy, $order];
     }
 
     public function scopeFiltrable(Builder $builder, array $filters): Builder
@@ -170,6 +235,12 @@ trait Filterable
     private function applyDirectFilters(Builder $builder, array $directFilters): void
     {
         foreach ($directFilters as $filter) {
+            if ($filter->isOrGroup()) {
+                $this->applyOrGroup($builder, $filter);
+
+                continue;
+            }
+
             $value = $filter->getValue();
             $attribute = $this->resolveFilterAttribute($filter);
 
@@ -185,6 +256,76 @@ trait Filterable
 
             $this->applyFilterToBuilder($builder, $filter, $attribute, $value);
         }
+    }
+
+    /**
+     * Apply an OR group (Filter::anyOf()) as a single grouped WHERE.
+     *
+     * All active children are combined with OR inside one nested group, so the
+     * group stays a single AND-ed condition relative to the other filters. Each
+     * child is wrapped in its own nested closure so a child expanding to several
+     * conditions (e.g. BETWEEN) stays an internal AND within its OR branch.
+     */
+    private function applyOrGroup(Builder $builder, Filter $group): void
+    {
+        $children = array_values(array_filter(
+            $group->getSubFilters(),
+            static fn (Filter $child): bool => ! $child->shouldIgnore()
+        ));
+
+        if ($children === []) {
+            return;
+        }
+
+        $builder->where(function ($query) use ($children): void {
+            foreach ($children as $child) {
+                $query->orWhere(function ($branch) use ($child): void {
+                    $this->applyOrBranch($branch, $child);
+                });
+            }
+        });
+    }
+
+    /**
+     * Apply a single child of an OR group to its nested branch.
+     */
+    private function applyOrBranch(Builder $branch, Filter $child): void
+    {
+        $relationship = $child->getRelationship();
+
+        if ($this->isValidRelationship($relationship)) {
+            $branch->whereHas($relationship, function ($query) use ($child): void {
+                $this->applyLeafFilter($query, $child);
+            });
+
+            return;
+        }
+
+        $this->applyLeafFilter($branch, $child);
+    }
+
+    /**
+     * Apply a single filter using its own declared attribute (no filterMap
+     * remapping — OR-group children name their columns explicitly).
+     */
+    private function applyLeafFilter(Builder $builder, Filter $filter): void
+    {
+        $value = $filter->getValue();
+        $attribute = $filter->getAttribute();
+
+        if ($this->shouldApplyBetweenFilter($filter, $value)) {
+            $this->applyBetweenFilter($builder, $attribute, $value);
+
+            return;
+        }
+
+        if ($this->hasJsonPath($filter)) {
+            $this->applyFilterToBuilder($builder, $filter, DB::raw($attribute), $value);
+
+            return;
+        }
+
+        $this->applyFilterToBuilder($builder, $filter, $attribute, $value);
     }
 
     /**
@@ -295,7 +436,7 @@ trait Filterable
     }
 
     /**
-     * Add conditional conditions to the conditions array
+     * Add conditional conditions to the condition array
      */
     private function addConditionalConditions(array &$conditions, array $newConditions): void
     {
@@ -395,10 +536,20 @@ trait Filterable
     }
 
     /**
-     * Apply an ILIKE filter to a builder with database-specific handling
+     * Apply an ILIKE (case-insensitive LIKE) filter to a builder.
+     *
+     * On Laravel 11.17+ this uses the native, driver-aware whereLike() (ilike on
+     * PostgreSQL, collation-based like on MySQL, like/glob on SQLite), which is
+     * index-friendly. Older versions fall back to per-driver handling.
      */
     private function applyIlikeFilter(Builder $builder, Filter $filter, string|Expression $attribute, mixed $value): void
     {
+        if ($this->supportsWhereLike()) {
+            $builder->whereLike($attribute, $value, false);
+
+            return;
+        }
+
         if ($filter->isUsingPostgreSQL()) {
             $builder->where($attribute, 'ILIKE', $value);
 
@@ -412,13 +563,23 @@ trait Filterable
         }
 
         if ($attribute instanceof Expression) {
-            $builder->whereRaw('LOWER('.$attribute->getValue().') LIKE LOWER(?)', [$value]);
+            $builder->whereRaw('LOWER('.$attribute->getValue($builder->getQuery()->getGrammar()).') LIKE LOWER(?)', [$value]);
 
             return;
         }
 
         $sanitizedAttribute = preg_replace('/[^a-zA-Z0-9_.]/', '', $attribute);
         $builder->whereRaw('LOWER(`'.$sanitizedAttribute.'`) LIKE LOWER(?)', [$value]);
+    }
+
+    /**
+     * Whether the underlying query builder supports the native whereLike()
+     * (added in Laravel 11.17). Detected on the query builder because the
+     * Eloquent builder forwards whereLike() via __call.
+     */
+    private function supportsWhereLike(): bool
+    {
+        return method_exists(\Illuminate\Database\Query\Builder::class, 'whereLike');
     }
 
     /**
@@ -489,17 +650,19 @@ trait Filterable
             $columns
         ));
 
-        $words = preg_split('/\s+/', trim($searchTerm));
-        $processedWords = array_filter(
+        $words = preg_split('/\s+/', trim($searchTerm)) ?: [];
+        $processedWords = array_values(array_filter(
             array_map(
-                static fn ($word): ?string => preg_replace('/[^\w\s\-]/u', '', $word),
+                // preg_replace with /u returns null on invalid UTF-8; coalesce to ''
+                // so neither prefix mode can emit a null or a bare ":*" lexeme.
+                static fn (string $word): string => (string) preg_replace('/[^\w\s\-]/u', '', $word),
                 $words
             ),
-            static fn (?string $word): bool => $word !== ''
-        );
+            static fn (string $word): bool => $word !== '' && trim($word, '-') !== ''
+        ));
 
         $tsquery = implode(' & ', array_map(
-            static fn ($word): string => $prefixMatch ? $word.':*' : $word,
+            static fn (string $word): string => $prefixMatch ? $word.':*' : $word,
             $processedWords
         ));
 

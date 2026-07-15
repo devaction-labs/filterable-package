@@ -3,15 +3,13 @@
 namespace DevactionLabs\FilterablePackage\MCP\Tools;
 
 use DevactionLabs\FilterablePackage\MCP\Contracts\Tool;
+use DevactionLabs\FilterablePackage\MCP\Support\InspectsModel;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\Relation;
-use Illuminate\Support\Facades\Schema;
-use ReflectionClass;
-use ReflectionMethod;
-use Throwable;
 
 class GenerateFiltersTool implements Tool
 {
+    use InspectsModel;
+
     private const array TEXT_TYPES = ['string', 'text', 'char', 'varchar', 'mediumtext', 'longtext', 'tinytext'];
 
     private const array DATE_TYPES = ['date', 'datetime', 'timestamp', 'timestamptz', 'datetimetz'];
@@ -171,70 +169,6 @@ class GenerateFiltersTool implements Tool
         $eagerLoad = in_array($type, ['HasOne', 'BelongsTo'], true) ? '->with()' : '';
 
         return sprintf("Filter::relationship('%s', 'id')%s, // filter by %s relationship", $relation, $eagerLoad, $relation);
-    }
-
-    private function resolveClass(string $model): ?string
-    {
-        if ($model === '') {
-            return null;
-        }
-
-        if (class_exists($model)) {
-            return $model;
-        }
-
-        foreach (['App\Models\\'.$model, 'App\\'.$model] as $candidate) {
-            if (class_exists($candidate)) {
-                return $candidate;
-            }
-        }
-
-        return null;
-    }
-
-    /** @return array<string, string> */
-    private function getColumns(string $table): array
-    {
-        try {
-            $columns = Schema::getColumnListing($table);
-            $types = [];
-            foreach ($columns as $column) {
-                $types[$column] = Schema::getColumnType($table, $column);
-            }
-
-            return $types;
-        } catch (Throwable) {
-            return [];
-        }
-    }
-
-    /** @return array<string, string> */
-    private function getRelationships(string $class, Model $instance): array
-    {
-        $relationships = [];
-        /** @var ReflectionClass<Model> $reflector */
-        $reflector = new ReflectionClass($instance);
-
-        foreach ($reflector->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
-            if ($method->class !== $class) {
-                continue;
-            }
-
-            if ($method->getNumberOfParameters() > 0) {
-                continue;
-            }
-
-            try {
-                $result = $method->invoke($instance);
-                if ($result instanceof Relation) {
-                    $relationships[$method->getName()] = class_basename($result);
-                }
-            } catch (Throwable) {
-                continue;
-            }
-        }
-
-        return $relationships;
     }
 
     private function varName(string $class): string

@@ -17,9 +17,23 @@ it('responds to initialize with protocol version and server info', function (): 
     $server = new FilterableMcpServer;
     $response = callDispatch($server, ['jsonrpc' => '2.0', 'id' => 1, 'method' => 'initialize', 'params' => []]);
 
-    expect($response['result']['protocolVersion'])->toBe('2024-11-05')
+    expect($response['result']['protocolVersion'])->toBe('2025-06-18')
         ->and($response['result']['serverInfo']['name'])->toBe('filterable-package')
         ->and($response['id'])->toBe(1);
+});
+
+it('echoes back a supported protocol version requested by the client', function (): void {
+    $server = new FilterableMcpServer;
+    $response = callDispatch($server, ['jsonrpc' => '2.0', 'id' => 1, 'method' => 'initialize', 'params' => ['protocolVersion' => '2024-11-05']]);
+
+    expect($response['result']['protocolVersion'])->toBe('2024-11-05');
+});
+
+it('falls back to the server default for an unknown requested protocol version', function (): void {
+    $server = new FilterableMcpServer;
+    $response = callDispatch($server, ['jsonrpc' => '2.0', 'id' => 1, 'method' => 'initialize', 'params' => ['protocolVersion' => '1999-01-01']]);
+
+    expect($response['result']['protocolVersion'])->toBe('2025-06-18');
 });
 
 it('lists four tools on tools/list', function (): void {

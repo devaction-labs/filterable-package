@@ -2,6 +2,37 @@
 
 All notable changes to `filterable-package` will be documented in this file.
 
+## 2.3.0 - 2026-07-15
+
+See [RFC 0001](docs/rfc/0001-or-groups-security-mcp-laravel13.md) for the full design and reproduction of each issue.
+
+### Added
+- **`Filter::anyOf()`** — a first-class OR group that combines direct-column and relationship filters into a single grouped `WHERE ( ... OR ... )`. Enables a single search box that matches an own-table column **or** a related-model column, e.g. `Filter::anyOf([Filter::like('receipt_number'), Filter::relationship('items.product', 'sku', 'ILIKE')], 'search')`. Previously impossible without hand-writing the query (which was also prone to an AND/OR grouping bug that leaked rows past other filters).
+- **`config('filterable.max_per_page')`** (default `100`) and a per-model `protected int $maxPerPage` to cap request-supplied page sizes.
+- **`config('filterable.strict_sorts')`** (default `false`) — when `true`, a request `sort` is rejected unless an explicit `allowedSorts()` list is configured.
+
+### Security
+- **SQL injection via `sort` on PostgreSQL (critical)**: a `sort` key containing `->` triggered PostgreSQL's JSON-path grammar, which interpolated the segment inside single quotes without escaping them, allowing a blind boolean injection (`?sort=-email->x'||(...)||'`). Request sort keys are now validated against a strict column-identifier pattern before reaching `orderBy()`, closing the injection on every driver.
+- **`per_page` denial-of-service**: `?per_page=0` (division-by-zero 500), `?per_page=-5` (query error), and `?per_page=999999999` (memory exhaustion) are fixed by clamping request page sizes to `[1, max_per_page]`.
+- **Type-confusion 500**: `?sort[]=x` now throws a catchable `InvalidArgumentException` instead of an uncaught `TypeError`.
+- **PostgreSQL full-text 500**: an invalid-UTF-8 search term no longer produces a `TypeError` or a malformed `to_tsquery` (bare `:*`); degenerate lexemes are dropped safely.
+- **Column enumeration**: opt-in `strict_sorts` closes the sort-oracle for callers who do not configure an allow-list. The default remains permissive for backward compatibility (configuring `allowedSorts()` is strongly recommended).
+- **MCP arbitrary method execution**: the MCP schema/filter-generation tools invoked *every* zero-argument public model method to detect relationships, which could run domain logic (e.g. a model's `notifyWarehouse()`). Detection now mirrors Laravel's `ModelInspector`: a method is only invoked once its return type or source body indicates it is a relationship.
+
+### Fixed
+- **`ILIKE` + JSON path on MySQL** raised `ArgumentCountError` because Laravel 13's `Expression::getValue()` requires a grammar argument; the grammar is now passed.
+- **Missing `illuminate/pagination` dependency**: `customPaginate()` could fatal with "Paginator not found"; the dependency is now declared.
+- **MCP JSON-RPC transport**: notifications (messages without an `id`) no longer receive a response (spec violation that broke strict clients); `initialize` now negotiates the client's requested `protocolVersion`; and the serve command routes PHP error output to STDERR so a stray warning cannot corrupt the framed message stream.
+
+### Changed
+- **`ILIKE` uses the native `whereLike($column, $value, caseSensitive: false)`** on Laravel 11.17+ (driver-aware: `ilike` on PostgreSQL, collation `like` on MySQL, `like`/`glob` on SQLite). This is index-friendly, unlike the previous `LOWER(col) LIKE LOWER(?)` on MySQL. Older Laravel versions keep the previous per-driver behavior. Note: on MySQL, case-insensitivity now follows the column collation (case-insensitive by default) rather than being forced with `LOWER()`.
+- The MCP `initialize` default `protocolVersion` is now `2025-06-18` (supported: `2024-11-05`, `2025-03-26`, `2025-06-18`).
+
+### Upgrading from 2.2.x
+- Request `per_page` values above `100` are now capped. Raise the limit with `config('filterable.max_per_page')` or a per-model `$maxPerPage` if you need larger pages.
+- If you relied on MySQL `ILIKE` being case-insensitive under a case-sensitive/binary collation, note it now follows the collation. Default MySQL collations are case-insensitive and unaffected.
+- No changes required for `Filter::anyOf()` — it is purely additive.
+
 ## 2.1.0 - 2026-04-10
 
 ### Added

@@ -9,6 +9,7 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Contracts\Pagination\Paginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Request;
 use InvalidArgumentException;
 use Mockery;
@@ -26,6 +27,9 @@ beforeEach(function (): void {
 
     Request::shouldReceive('query')
         ->andReturn(['name' => 'John']);
+
+    // Sort/pagination hardening reads config; return defaults here.
+    Config::shouldReceive('get')->andReturnUsing(fn ($key, $default = null) => $default);
 
     $model = new FilterableTest;
 });
@@ -126,61 +130,24 @@ it('throws exception for invalid pagination type', function (): void {
     $model->scopeCustomPaginate($builder, 'invalid', 15, ['per_page' => 15]);
 })->throws(InvalidArgumentException::class, "Invalid pagination type [invalid]. Use 'paginate', 'simple', or 'cursor'.");
 
-it('applies ilike filter on PostgreSQL', function (): void {
+it('applies ilike filter using native whereLike (case-insensitive)', function (): void {
     global $builder, $model;
 
+    // On Laravel 11.17+ ILIKE routes to the driver-aware whereLike(); the
+    // resulting SQL (ilike/like/glob) is the connection grammar's job and is
+    // asserted per-driver in the integration suite.
     $filter = Filter::ilike('name')->setValue('%john%');
-    $filter->setDatabaseDriver('pgsql');
 
-    $builder->shouldReceive('where')
+    $builder->shouldReceive('whereLike')
         ->once()
-        ->with('name', 'ILIKE', '%john%')
+        ->with('name', '%john%', false)
         ->andReturnSelf();
 
     $builder->shouldReceive('with')
         ->zeroOrMoreTimes()
         ->andReturnSelf();
 
-    $filters = [$filter];
-    $model->scopeFilterable($builder, $filters);
-});
-
-it('applies ilike filter on SQLite using LIKE', function (): void {
-    global $builder, $model;
-
-    $filter = Filter::ilike('name')->setValue('%john%');
-    $filter->setDatabaseDriver('sqlite');
-
-    $builder->shouldReceive('where')
-        ->once()
-        ->with('name', 'LIKE', '%john%')
-        ->andReturnSelf();
-
-    $builder->shouldReceive('with')
-        ->zeroOrMoreTimes()
-        ->andReturnSelf();
-
-    $filters = [$filter];
-    $model->scopeFilterable($builder, $filters);
-});
-
-it('applies ilike filter on MySQL using LOWER', function (): void {
-    global $builder, $model;
-
-    $filter = Filter::ilike('name')->setValue('%john%');
-    $filter->setDatabaseDriver('mysql');
-
-    $builder->shouldReceive('whereRaw')
-        ->once()
-        ->with('LOWER(`name`) LIKE LOWER(?)', ['%john%'])
-        ->andReturnSelf();
-
-    $builder->shouldReceive('with')
-        ->zeroOrMoreTimes()
-        ->andReturnSelf();
-
-    $filters = [$filter];
-    $model->scopeFilterable($builder, $filters);
+    $model->scopeFilterable($builder, [$filter]);
 });
 
 it('creates ilike filter with correct operator', function (): void {

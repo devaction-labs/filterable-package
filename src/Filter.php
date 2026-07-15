@@ -23,52 +23,52 @@ class Filter
      *
      * @deprecated Use FilterOperator enum instead
      */
-    public const OPERATOR_EQUALS = '=';
+    public const string OPERATOR_EQUALS = '=';
 
     /** @deprecated Use FilterOperator enum instead */
-    public const OPERATOR_LIKE = 'LIKE';
+    public const string OPERATOR_LIKE = 'LIKE';
 
     /** @deprecated Use FilterOperator enum instead */
-    public const OPERATOR_IN = 'IN';
+    public const string OPERATOR_IN = 'IN';
 
     /** @deprecated Use FilterOperator enum instead */
-    public const OPERATOR_GT = '>';
+    public const string OPERATOR_GT = '>';
 
     /** @deprecated Use FilterOperator enum instead */
-    public const OPERATOR_GTE = '>=';
+    public const string OPERATOR_GTE = '>=';
 
     /** @deprecated Use FilterOperator enum instead */
-    public const OPERATOR_LT = '<';
+    public const string OPERATOR_LT = '<';
 
     /** @deprecated Use FilterOperator enum instead */
-    public const OPERATOR_LTE = '<=';
+    public const string OPERATOR_LTE = '<=';
 
     /** @deprecated Use FilterOperator enum instead */
-    public const OPERATOR_BETWEEN = 'BETWEEN';
+    public const string OPERATOR_BETWEEN = 'BETWEEN';
 
     /** @deprecated Use FilterOperator enum instead */
-    public const OPERATOR_ILIKE = 'ILIKE';
+    public const string OPERATOR_ILIKE = 'ILIKE';
 
     /** @deprecated Use FilterOperator enum instead */
-    public const OPERATOR_NOT_EQUALS = '!=';
+    public const string OPERATOR_NOT_EQUALS = '!=';
 
     /** @deprecated Use FilterOperator enum instead */
-    public const OPERATOR_NOT_IN = 'NOT IN';
+    public const string OPERATOR_NOT_IN = 'NOT IN';
 
     /** @deprecated Use FilterOperator enum instead */
-    public const OPERATOR_NOT_LIKE = 'NOT LIKE';
+    public const string OPERATOR_NOT_LIKE = 'NOT LIKE';
 
     /** @deprecated Use FilterOperator enum instead */
-    public const OPERATOR_IS_NULL = 'IS NULL';
+    public const string OPERATOR_IS_NULL = 'IS NULL';
 
     /** @deprecated Use FilterOperator enum instead */
-    public const OPERATOR_IS_NOT_NULL = 'IS NOT NULL';
+    public const string OPERATOR_IS_NOT_NULL = 'IS NOT NULL';
 
     /** @deprecated Use FilterOperator enum instead */
-    public const OPERATOR_STARTS_WITH = 'STARTS_WITH';
+    public const string OPERATOR_STARTS_WITH = 'STARTS_WITH';
 
     /** @deprecated Use FilterOperator enum instead */
-    public const OPERATOR_ENDS_WITH = 'ENDS_WITH';
+    public const string OPERATOR_ENDS_WITH = 'ENDS_WITH';
 
     protected string $attribute;
 
@@ -114,6 +114,13 @@ class Filter
     protected bool $fullTextPrefixMatch = true;
 
     protected bool $isTsVector = false;
+
+    /**
+     * Child filters for an OR group (see Filter::anyOf()).
+     *
+     * @var array<int, Filter>
+     */
+    protected array $subFilters = [];
 
     /**
      * Create a new filter instance
@@ -517,6 +524,42 @@ class Filter
         $filter->fullTextColumns = $columnsArray;
 
         return $filter;
+    }
+
+    /**
+     * Create an OR group that combines several filters with OR.
+     *
+     * The children may mix direct-column and relationship filters; they are
+     * emitted as a single grouped `WHERE ( ... OR ... )`, so the group stays a
+     * single AND-ed condition relative to the other filters.
+     *
+     * When $filterBy is provided, every child is re-pointed to that request key
+     * and re-reads its value — the single-search-box case, where one input
+     * (?filter[search]=...) feeds every child. When $filterBy is null, each
+     * child keeps its own request key.
+     *
+     * @param  array<int, Filter>  $filters  The child filters to OR together
+     * @param  string|null  $filterBy  A shared request parameter for every child
+     *
+     * @throws InvalidArgumentException If any child is not a Filter instance
+     */
+    public static function anyOf(array $filters, ?string $filterBy = null): self
+    {
+        foreach ($filters as $child) {
+            if (! $child instanceof self) {
+                throw new InvalidArgumentException('Filter::anyOf() only accepts Filter instances.');
+            }
+
+            if ($filterBy !== null) {
+                $child->setFilterBy($filterBy);
+                $child->setValueFromRequest();
+            }
+        }
+
+        $group = new self('__or_group__', FilterOperator::OR_GROUP->value, $filterBy ?? '__or_group__');
+        $group->subFilters = array_values($filters);
+
+        return $group;
     }
 
     /**
@@ -988,10 +1031,38 @@ class Filter
     }
 
     /**
+     * Get the child filters of an OR group.
+     *
+     * @return array<int, Filter>
+     */
+    public function getSubFilters(): array
+    {
+        return $this->subFilters;
+    }
+
+    /**
+     * Check whether this filter is an OR group (see Filter::anyOf()).
+     */
+    public function isOrGroup(): bool
+    {
+        return $this->operator === FilterOperator::OR_GROUP->value;
+    }
+
+    /**
      * Check if this filter should be ignored (has no value)
      */
     public function shouldIgnore(): bool
     {
+        if ($this->isOrGroup()) {
+            foreach ($this->subFilters as $child) {
+                if (! $child->shouldIgnore()) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         return ! $this->isValid($this->value) && ! $this->isValid($this->default);
     }
 

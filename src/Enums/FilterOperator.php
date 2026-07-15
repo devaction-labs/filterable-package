@@ -28,6 +28,7 @@ enum FilterOperator: string
     case STARTS_WITH = 'STARTS_WITH';
     case ENDS_WITH = 'ENDS_WITH';
     case FULL_TEXT = 'FULL_TEXT';
+    case OR_GROUP = 'OR_GROUP';
 
     /**
      * Check if the operator requires a value

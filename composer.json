@@ -1,6 +1,7 @@
 {
     "name": "devaction-labs/filterable-package",
     "description": "A Laravel package for filterable traits and classes.",
+    "version": "2.3.0",
     "keywords": [
         "laravel",
         "filter",
@@ -24,6 +25,7 @@
         "illuminate/console": "^11|^12|^13",
         "illuminate/database": "^11|^12|^13",
         "illuminate/http": "^11|^12|^13",
+        "illuminate/pagination": "^11|^12|^13",
         "illuminate/support": "^11|^12|^13"
     },
     "require-dev": {
@@ -69,7 +71,7 @@
         "lint": "pint",
         "test:refacto": "rector --dry-run",
         "test:lint": "pint --test",
-        "test:types": "phpstan analyse --ansi",
+        "test:types": "phpstan analyse --ansi --memory-limit=1G",
         "test:unit": "pest --colors=always",
         "test:coverage": "pest --coverage --min=80",
         "test:coverage-html": "pest --coverage-html coverage",

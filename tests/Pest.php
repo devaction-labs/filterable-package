@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Request;
+use Tests\Integration\IntegrationTestCase;
 use Tests\TestCase;
 
 /*
@@ -19,6 +20,7 @@ use Tests\TestCase;
 */
 
 uses(TestCase::class)->in('Feature', 'Unit');
+uses(IntegrationTestCase::class)->in('Integration');
 
 /*
 |--------------------------------------------------------------------------
