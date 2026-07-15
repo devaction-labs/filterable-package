@@ -3,15 +3,15 @@
 namespace DevactionLabs\FilterablePackage\MCP\Tools;
 
 use DevactionLabs\FilterablePackage\MCP\Contracts\Tool;
+use DevactionLabs\FilterablePackage\MCP\Support\InspectsModel;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Schema;
-use ReflectionClass;
-use ReflectionMethod;
 use Throwable;
 
 class GetModelSchemaTool implements Tool
 {
+    use InspectsModel;
+
     public function name(): string
     {
         return 'get_model_schema';
@@ -91,46 +91,6 @@ class GetModelSchemaTool implements Tool
         return implode("\n", $lines);
     }
 
-    private function resolveClass(string $model): ?string
-    {
-        if ($model === '') {
-            return null;
-        }
-
-        if (class_exists($model)) {
-            return $model;
-        }
-
-        $candidates = [
-            'App\Models\\'.$model,
-            'App\\'.$model,
-        ];
-
-        foreach ($candidates as $candidate) {
-            if (class_exists($candidate)) {
-                return $candidate;
-            }
-        }
-
-        return null;
-    }
-
-    /** @return array<string, string> */
-    private function getColumns(string $table): array
-    {
-        try {
-            $columns = Schema::getColumnListing($table);
-            $types = [];
-            foreach ($columns as $column) {
-                $types[$column] = Schema::getColumnType($table, $column);
-            }
-
-            return $types;
-        } catch (Throwable) {
-            return [];
-        }
-    }
-
     private function isNullable(string $table, string $column): bool
     {
         try {
@@ -145,34 +105,5 @@ class GetModelSchemaTool implements Tool
         } catch (Throwable) {
             return false;
         }
-    }
-
-    /** @return array<string, string> */
-    private function getRelationships(string $class, Model $instance): array
-    {
-        $relationships = [];
-        /** @var ReflectionClass<Model> $reflector */
-        $reflector = new ReflectionClass($instance);
-
-        foreach ($reflector->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
-            if ($method->class !== $class) {
-                continue;
-            }
-
-            if ($method->getNumberOfParameters() > 0) {
-                continue;
-            }
-
-            try {
-                $result = $method->invoke($instance);
-                if ($result instanceof Relation) {
-                    $relationships[$method->getName()] = class_basename($result);
-                }
-            } catch (Throwable) {
-                continue;
-            }
-        }
-
-        return $relationships;
     }
 }

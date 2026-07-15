@@ -12,11 +12,14 @@ use Throwable;
 
 class FilterableMcpServer
 {
-    private const string PROTOCOL_VERSION = '2024-11-05';
+    private const string PROTOCOL_VERSION = '2025-06-18';
+
+    /** @var array<int, string> Protocol revisions this server can speak. */
+    private const array SUPPORTED_PROTOCOL_VERSIONS = ['2024-11-05', '2025-03-26', '2025-06-18'];
 
     private const string SERVER_NAME = 'filterable-package';
 
-    private const string SERVER_VERSION = '1.0.0';
+    private const string SERVER_VERSION = '2.3.0';
 
     /** @var Tool[] */
     private readonly array $tools;
@@ -51,7 +54,9 @@ class FilterableMcpServer
 
             $response = $this->dispatch($request);
 
-            if ($response !== []) {
+            // A JSON-RPC notification (no "id" member) must never receive a
+            // response, not even an error one.
+            if (array_key_exists('id', $request) && $response !== []) {
                 $this->write($response);
             }
         }
@@ -67,7 +72,7 @@ class FilterableMcpServer
         $method = isset($request['method']) && is_string($request['method']) ? $request['method'] : '';
 
         return match ($method) {
-            'initialize' => $this->handleInitialize($id),
+            'initialize' => $this->handleInitialize($id, isset($request['params']) && is_array($request['params']) ? $request['params'] : []),
             'notifications/initialized' => [],
             'ping' => $this->ok($id, new stdClass),
             'tools/list' => $this->handleToolsList($id),
@@ -76,11 +81,17 @@ class FilterableMcpServer
         };
     }
 
-    /** @return array<string, mixed> */
-    private function handleInitialize(mixed $id): array
+    /**
+     * @param  array<string, mixed>  $params
+     * @return array<string, mixed>
+     */
+    private function handleInitialize(mixed $id, array $params): array
     {
+        $requested = isset($params['protocolVersion']) && is_string($params['protocolVersion']) ? $params['protocolVersion'] : '';
+        $version = in_array($requested, self::SUPPORTED_PROTOCOL_VERSIONS, true) ? $requested : self::PROTOCOL_VERSION;
+
         return $this->ok($id, [
-            'protocolVersion' => self::PROTOCOL_VERSION,
+            'protocolVersion' => $version,
             'capabilities' => ['tools' => ['listChanged' => false]],
             'serverInfo' => [
                 'name' => self::SERVER_NAME,

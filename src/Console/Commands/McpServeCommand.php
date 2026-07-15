@@ -17,6 +17,10 @@ class McpServeCommand extends Command
 
     public function handle(): void
     {
+        // STDOUT carries framed JSON-RPC only; route PHP error output to STDERR
+        // so a stray warning/notice cannot corrupt the message stream.
+        ini_set('display_errors', 'stderr');
+
         (new FilterableMcpServer)->run();
     }
 }

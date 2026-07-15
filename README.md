@@ -94,6 +94,7 @@ GET /api/products?filter[search]=laptop&filter[price_range]=1000,3000&filter[cat
 | `Filter::gte('price', 'min')` | Greater than or equal | `?filter[min]=100` |
 | `Filter::lte('price', 'max')` | Less than or equal | `?filter[max]=500` |
 | `Filter::relationship('brand', 'slug')` | Filter by related model | `?filter[brand]=apple` |
+| `Filter::anyOf([...], 'search')` | OR group across columns **and** relationships | `?filter[search]=ABC` |
 | `Filter::json('data', 'color', '=', 'color')` | JSON field filtering | `?filter[color]=red` |
 | `Filter::isNotNull('verified_at')` | Not null check | `?filter[verified]=1` |
 | `Filter::startsWith('sku', 'code')` | Prefix matching | `?filter[code]=PRD` |
@@ -431,6 +432,31 @@ Filter::relationship('user', 'id')
     ->setValue(auth()->id()); // This has no effect!
 ```
 
+### OR Groups Across Columns and Relationships — `Filter::anyOf()`
+
+Every filter in `filterable([...])` is combined with **AND**. `Filter::anyOf()` groups filters with **OR** inside a single parenthesised condition, and the children may mix direct columns and relationship filters. This is the way to build one search box that matches an own-table column **or** a related-model column:
+
+```php
+$receipts = GoodsReceipt::filterable([
+    Filter::exact('status'),
+    Filter::anyOf([
+        Filter::like('receipt_number'),
+        Filter::like('invoice_number'),
+        Filter::relationship('items.product', 'sku', 'ILIKE'),
+    ], 'search'),          // one shared request key
+])->customPaginate();
+```
+
+**Request:** `?filter[status]=open&filter[search]=ABC`
+
+```sql
+WHERE "status" = ? AND ( ("receipt_number" LIKE ?)
+                      OR ("invoice_number" LIKE ?)
+                      OR EXISTS (SELECT * FROM items ... WHERE sku LIKE ?) )
+```
+
+The alternatives are grouped, so a row that only matches inside the group can never escape the other filters (e.g. a `status != 'open'` receipt will not leak). Omit the second argument to OR filters that each read their own request key. See the [Filter Reference](FILTER_REFERENCE.md#17-filteranyof--or-groups-own-columns-or-relationships) for both forms and performance notes.
+
 ## Customizing Pagination and Sorting
 
 The package provides flexible pagination options through the `customPaginate` method, supporting three pagination types:
@@ -488,6 +514,16 @@ $results = Expense::query()
 protected string $defaultSort = 'amount';
 protected array $allowedSorts = ['amount', 'expense_date'];
 ```
+
+### Security & Hardening (sort / per_page)
+
+Since `sort` and `per_page` come from the request, the package validates them:
+
+- **Always configure `allowedSorts()`.** With no allow-list, any column may be used as a sort key, which lets a caller order by a hidden column and infer its values. Request sort keys are always validated to be plain column identifiers (this alone closes a PostgreSQL `->`-based SQL injection), but the allow-list is what prevents column enumeration.
+- **`per_page` is clamped** to `[1, 100]`. Change the ceiling with `config('filterable.max_per_page')` or a per-model `protected int $maxPerPage`. An explicit value you pass in code (e.g. `customPaginate('paginate', 250)`) is not capped — only request-supplied values are.
+- **Strict sorting (opt-in):** set `config('filterable.strict_sorts')` to `true` to reject any request `sort` when a model has no `allowedSorts()` list.
+
+Invalid input (`?sort[]=x`, `?sort=col->x`, an unlisted sort) throws a catchable `InvalidArgumentException` — render it as a `422`/`400` in your exception handler.
 
 ## Custom Filter Mapping
 

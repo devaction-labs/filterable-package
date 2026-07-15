@@ -70,7 +70,7 @@ Request: `GET /users?filter[name]=john&filter[status]=active&filter[created_at]=
 |---|---|---|
 | `Filter::exact('col')` | `col = ?` | IDs, status, boolean, exact match |
 | `Filter::like('col')` | `col LIKE %?%` | Text search (case-sensitive) |
-| `Filter::ilike('col')` | `col ILIKE ?` | Text search (case-insensitive). PostgreSQL native, MySQL uses LOWER() |
+| `Filter::ilike('col')` | `col ILIKE ?` | Text search (case-insensitive). Uses native whereLike (Laravel 11.17+): ilike on PostgreSQL, collation like on MySQL |
 | `Filter::notEquals('col')` | `col != ?` | Exclusions |
 | `Filter::notLike('col')` | `col NOT LIKE %?%` | Text exclusion |
 | `Filter::in('col')` | `col IN (?)` | Multiple values. Request: `val1,val2,val3` |
@@ -87,6 +87,32 @@ Request: `GET /users?filter[name]=john&filter[status]=active&filter[created_at]=
 | `Filter::fullText(['col1','col2'])` | tsvector / LIKE | Full-text search |
 | `Filter::relationship('rel','col')` | `EXISTS (...)` | Filter via Eloquent relation |
 | `Filter::json('col','path')` | `col->>'path'` | Filter JSON column field |
+| `Filter::anyOf([...], 'key')` | `( a OR b OR EXISTS(...) )` | OR group across columns AND relationships (single search box) |
+
+---
+
+## OR groups (own column OR relationship)
+
+Every filter in `filterable([...])` is AND-ed. Use `Filter::anyOf()` to OR several
+filters — including relationship filters — inside one parenthesised group. Pass a
+shared request key as the second argument for a single search box:
+
+```php
+User::filterable([
+    Filter::exact('status'),
+    Filter::anyOf([
+        Filter::like('name'),
+        Filter::like('email'),
+        Filter::relationship('company', 'name', 'ILIKE'),
+    ], 'search'),   // ?filter[search]=acme feeds all three
+]);
+// WHERE status = ? AND ( name LIKE ? OR email LIKE ? OR EXISTS(...company.name...) )
+```
+
+Omit the second argument to OR filters that each read their own request key. The
+group adds no SQL when every child is empty. This is the ONLY correct way to OR a
+direct column with a relationship — do NOT hand-write where()->orWhere()->orWhereHas(),
+which leaks rows past the other (AND-ed) filters.
 
 ---
 
@@ -126,6 +152,10 @@ User::allowedSorts(['name', 'email', 'created_at'], '-created_at')
 
 // Request: ?sort=name (ASC) or ?sort=-name (DESC)
 ```
+
+Always configure allowedSorts(): with no allow-list, any column may be used as a
+sort key (column-enumeration risk). Request per_page is clamped to [1, 100]
+(config filterable.max_per_page). Invalid sort/per_page throws InvalidArgumentException.
 
 ## Column mapping
 

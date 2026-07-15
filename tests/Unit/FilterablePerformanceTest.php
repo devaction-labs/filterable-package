@@ -159,6 +159,7 @@ class FilterablePerformanceTest extends TestCase
     {
         $filter = Mockery::mock(Filter::class);
         $filter->shouldReceive('shouldIgnore')->andReturn(false);
+        $filter->shouldReceive('isOrGroup')->andReturn(false);
         $filter->shouldReceive('getRelationship')->andReturn(null);
         $filter->shouldReceive('getAttribute')->andReturn($attribute);
         $filter->shouldReceive('getValue')->andReturn($value);
