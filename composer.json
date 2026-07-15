@@ -1,7 +1,6 @@
 {
     "name": "devaction-labs/filterable-package",
     "description": "A Laravel package for filterable traits and classes.",
-    "version": "2.3.0",
     "keywords": [
         "laravel",
         "filter",
